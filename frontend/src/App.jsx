@@ -74,8 +74,10 @@ function App() {
     }
   }, [])
 
-  // Prevent accidental back navigation on scroll
+  // Prevent accidental back navigation (only needed when emails are loaded)
   useEffect(() => {
+    if (!user) return // No need for navigation prevention on welcome page
+
     const preventBackNavigation = (e) => {
       // Block ANY horizontal scroll that's not on an email card
       if (Math.abs(e.deltaX) > 0) {
@@ -119,12 +121,6 @@ function App() {
       window.touchStartX = null
     }
 
-    // Add event listeners to catch all scroll/swipe events
-    window.addEventListener('wheel', preventBackNavigation, { passive: false, capture: true })
-    window.addEventListener('touchstart', preventTouchNavigation, { passive: false })
-    window.addEventListener('touchmove', preventTouchMove, { passive: false })
-    window.addEventListener('touchend', clearTouch)
-
     // Also prevent history navigation via keyboard
     const preventKeyboardNav = (e) => {
       // Prevent Alt+Arrow keys and Backspace navigation
@@ -134,6 +130,11 @@ function App() {
       }
     }
 
+    // Add event listeners to catch all scroll/swipe events
+    window.addEventListener('wheel', preventBackNavigation, { passive: false, capture: true })
+    window.addEventListener('touchstart', preventTouchNavigation, { passive: false })
+    window.addEventListener('touchmove', preventTouchMove, { passive: false })
+    window.addEventListener('touchend', clearTouch)
     window.addEventListener('keydown', preventKeyboardNav)
 
     return () => {
@@ -143,7 +144,7 @@ function App() {
       window.removeEventListener('touchend', clearTouch)
       window.removeEventListener('keydown', preventKeyboardNav)
     }
-  }, [])
+  }, [user])
 
   const handleLoginSuccess = (credentialResponse) => {
     setUser(credentialResponse.user)
@@ -734,29 +735,29 @@ function App() {
                   <span className="gradient-text"> Inbox Zero</span>
                 </h1>
                 <p className="welcome-subtitle">
-                  SwipeMail uses AI to intelligently sort your emails. Swipe right on emails you're interested in, and let our smart AI automatically organize them into the perfect folders.
+                  Swipe right on interesting emails. AI automatically organizes them.
                 </p>
 
                 <div className="feature-highlights">
                   <div className="feature">
                     <div className="feature-icon">🧠</div>
                     <div className="feature-text">
-                      <strong>AI-Powered Analysis</strong>
-                      <span>Smart categorization with Cerebras AI</span>
+                      <strong>AI Analysis</strong>
+                      <span>Smart categorization</span>
                     </div>
                   </div>
                   <div className="feature">
                     <div className="feature-icon">📂</div>
                     <div className="feature-text">
-                      <strong>Auto-Organization</strong>
-                      <span>Emails sorted into perfect folders</span>
+                      <strong>Auto-Sorted</strong>
+                      <span>Perfect folders</span>
                     </div>
                   </div>
                   <div className="feature">
                     <div className="feature-icon">⚡</div>
                     <div className="feature-text">
-                      <strong>Lightning Fast</strong>
-                      <span>Tinder-style swiping interface</span>
+                      <strong>Swipe Interface</strong>
+                      <span>Tinder-style sorting</span>
                     </div>
                   </div>
                 </div>
@@ -768,7 +769,7 @@ function App() {
                     onLogout={handleLogout}
                   />
                   <p className="privacy-note">
-                    🔒 Your emails stay private. We only analyze what you choose to organize.
+                    🔒 Private & secure
                   </p>
                 </div>
               </div>

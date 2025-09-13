@@ -294,10 +294,18 @@ function SwipeableEmailCard({ email, onSwipeLeft, onSwipeRight, isTopCard = fals
       {isTopCard && (
         <>
           <div className="swipe-hints">
-            <div className="swipe-hint left">
-              <span>←</span>
-              <small>Not Interested</small>
-            </div>
+            <button
+              className="gmail-button swipe-button left"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleSwipeLeft()
+              }}
+            >
+              <div className="gmail-button-content">
+                <div className="gmail-button-icon">←</div>
+                <div className="gmail-button-text">Not Interested</div>
+              </div>
+            </button>
             <a
               href={`https://mail.google.com/mail/u/0/#inbox/${email.threadId}`}
               target="_blank"
@@ -317,10 +325,18 @@ function SwipeableEmailCard({ email, onSwipeLeft, onSwipeRight, isTopCard = fals
                 <div className="gmail-button-text">View Email</div>
               </div>
             </a>
-            <div className="swipe-hint right">
-              <span>→</span>
-              <small>Interested</small>
-            </div>
+            <button
+              className="gmail-button swipe-button right"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleSwipeRight()
+              }}
+            >
+              <div className="gmail-button-content">
+                <div className="gmail-button-icon">→</div>
+                <div className="gmail-button-text">Interested</div>
+              </div>
+            </button>
           </div>
           {scrollLocked && (
             <div className="scroll-cooldown-indicator">
