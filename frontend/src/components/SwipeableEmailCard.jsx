@@ -272,13 +272,12 @@ function SwipeableEmailCard({ email, onSwipeLeft, onSwipeRight, isTopCard = fals
               {email.from?.match(/<(.+)>/)?.[1] || email.from}
             </span>
           </div>
+          <div className="email-subject-center">
+            {email.subject}
+          </div>
           <div className="email-date">
             {email.date ? new Date(email.date).toLocaleDateString() : ''}
           </div>
-        </div>
-
-        <div className="email-subject">
-          <h3>{email.subject}</h3>
         </div>
 
         <div className="email-snippet">

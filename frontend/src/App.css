@@ -57,16 +57,6 @@ body {
   touch-action: pan-y pinch-zoom;
 }
 
-/* Mouse-follow glow overlay */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(300px 300px at var(--mx, 50vw) var(--my, 50vh), rgba(139, 92, 246, 0.08), transparent 80%);
-  z-index: 9999;
-  transition: background 0.1s ease-out;
-}
 
 /* App layout */
 .app {
@@ -79,7 +69,7 @@ body::before {
 
 .app-header {
   background: radial-gradient(1200px 600px at 50% -10%, var(--primary-soft), transparent 70%);
-  padding: 0.75rem 2rem 0.5rem;
+  padding: 0.5rem 1.5rem;
   border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
@@ -88,6 +78,7 @@ body::before {
   position: relative;
   z-index: 1;
   flex-shrink: 0;
+  min-height: 50px;
 }
 
 .app-header h1 {
@@ -510,10 +501,12 @@ body::before {
 /* Folder bar styles */
 .folder-bar {
   background: var(--bg-elev);
-  padding: 1.25rem;
+  padding: 1rem;
   height: 100%;
   border-right: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
+  width: 220px;
+  flex-shrink: 0;
 }
 
 .folder-bar-header h3 {
@@ -703,7 +696,8 @@ body::before {
 
 .email-address {
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
+  display: inline;
 }
 
 .email-subject {
@@ -824,9 +818,10 @@ body::before {
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-bottom: 1.5rem;
-  padding: 0 0.5rem;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem;
   flex-shrink: 0;
+  min-height: 40px;
 }
 
 .stack-progress {
@@ -884,13 +879,13 @@ body::before {
   border-radius: 16px;
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
-  padding: 1.5rem;
+  padding: 1.2rem;
   user-select: none;
   overflow: hidden;
-  width: 480px;
-  height: 500px;
+  width: min(85vw, 900px);
+  height: min(80vh, 700px);
   max-width: 95vw;
-  max-height: 90vh;
+  max-height: 85vh;
   display: flex;
   flex-direction: column;
   transition: transform 0.25s ease, box-shadow 0.25s ease;
@@ -988,44 +983,58 @@ body::before {
 }
 
 .email-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr;
+  gap: 1rem;
+  align-items: center;
   margin-bottom: 0;
-  padding-bottom: 0.35rem;
-  border-bottom: 1px solid rgba(209, 213, 219, 0.3);
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid rgba(209, 213, 219, 0.2);
   flex-shrink: 0;
+  min-height: 0;
 }
 
 .email-from {
-  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
   min-width: 0;
 }
 
 .email-from strong {
   color: var(--text);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 600;
-  display: block;
-  margin-bottom: 0.25rem;
+  margin: 0;
 }
 
 .email-address {
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
+}
+
+.email-subject-center {
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .email-date {
   color: var(--text-muted);
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   white-space: nowrap;
-  margin-left: 1rem;
-  flex-shrink: 0;
+  text-align: right;
+  min-width: 0;
 }
 
 .email-subject {
   margin: 0;
-  padding: 0.35rem 0;
+  padding: 0.25rem 0 0.15rem;
   flex-shrink: 0;
 }
 
@@ -1035,6 +1044,8 @@ body::before {
   font-weight: 600;
   line-height: 1.2;
   margin: 0;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .email-snippet {
@@ -1047,6 +1058,7 @@ body::before {
   position: relative;
   word-wrap: break-word;
   overflow-wrap: break-word;
+  max-height: min(55vh, 450px); /* Responsive to viewport height */
 }
 
 .email-snippet::-webkit-scrollbar {
@@ -1066,23 +1078,6 @@ body::before {
   background: rgba(156, 163, 175, 0.6);
 }
 
-/* Subtle fade effect to indicate scrollable content */
-.email-snippet::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 8px; /* Account for scrollbar space */
-  height: 20px;
-  background: linear-gradient(to top, var(--bg-elev), transparent);
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.email-snippet:hover::after {
-  opacity: 1;
-}
 
 .email-snippet p {
   color: var(--text-muted);
@@ -1091,16 +1086,17 @@ body::before {
   margin: 0;
   word-wrap: break-word;
   overflow-wrap: break-word;
-  padding-bottom: 10px; /* Space for fade effect */
+  padding-bottom: 10px;
 }
 
 .email-body {
-  color: var(--text-muted);
-  font-size: 0.9rem;
-  line-height: 1.5;
+  color: var(--text);
+  font-size: 0.95rem;
+  line-height: 1.6;
   word-wrap: break-word;
   overflow-wrap: break-word;
-  padding-bottom: 10px; /* Space for fade effect */
+  padding-bottom: 10px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 .email-body p {
@@ -1129,10 +1125,13 @@ body::before {
 }
 
 .email-body img {
-  max-width: 100%;
-  height: auto;
+  max-width: 100% !important;
+  height: auto !important;
   object-fit: contain;
   border-radius: 4px;
+  display: block !important;
+  margin: 0.5rem 0 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .email-body video {
@@ -1184,16 +1183,72 @@ body::before {
   font-size: 0.9em;
 }
 
-/* Force any wide content to fit */
+/* Force any wide content to fit while preserving layout */
 .email-body * {
   max-width: 100% !important;
   box-sizing: border-box !important;
 }
 
-/* Remove any background colors from email content */
-.email-body *:not(pre):not(code) {
-  background-color: transparent !important;
+/* Preserve original spacing and formatting */
+.email-body br {
+  line-height: 1.6;
+}
+
+.email-body blockquote {
+  border-left: 3px solid var(--border);
+  padding-left: 1rem;
+  margin: 0.5rem 0;
   color: var(--text-muted) !important;
+  font-style: italic;
+}
+
+.email-body ul, .email-body ol {
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+
+.email-body li {
+  margin: 0.25rem 0;
+  color: var(--text) !important;
+}
+
+/* Preserve email styling while ensuring safety and readability */
+.email-body *:not(pre):not(code):not(a):not(img):not(strong):not(b):not(em):not(i):not(h1):not(h2):not(h3):not(h4):not(h5):not(h6) {
+  color: var(--text) !important;
+}
+
+.email-body a {
+  color: var(--primary) !important;
+  text-decoration: underline;
+}
+
+.email-body strong, .email-body b {
+  font-weight: 600 !important;
+  color: var(--text) !important;
+}
+
+.email-body em, .email-body i {
+  font-style: italic !important;
+  color: var(--text) !important;
+}
+
+.email-body h1, .email-body h2, .email-body h3, .email-body h4, .email-body h5, .email-body h6 {
+  color: var(--text) !important;
+  margin: 0.5rem 0 !important;
+}
+
+/* Allow original text formatting and spacing */
+.email-body p {
+  margin: 0.5rem 0 !important;
+  color: var(--text) !important;
+}
+
+.email-body div {
+  color: var(--text) !important;
+}
+
+.email-body span {
+  color: inherit !important;
 }
 
 /* Handle long URLs and text */
@@ -1471,17 +1526,18 @@ body::before {
   }
 
   .swipeable-email-card {
-    width: 340px;
-    height: 320px;
-    padding: 1.5rem;
+    width: min(90vw, 500px);
+    height: min(70vh, 450px);
+    padding: 1.2rem;
     max-width: 95vw;
   }
 
   .stack-header {
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.5rem;
     align-items: stretch;
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
+    padding: 0.25rem;
   }
 
   .summary-stats {

@@ -59,20 +59,6 @@ function App() {
     checkExistingSession()
   }, [])
 
-  // Mouse tracking for purple aura effect
-  useEffect(() => {
-    const handleMouseMove = (e) => {
-      const { clientX, clientY } = e
-      document.documentElement.style.setProperty('--mx', `${clientX}px`)
-      document.documentElement.style.setProperty('--my', `${clientY}px`)
-    }
-
-    document.addEventListener('mousemove', handleMouseMove)
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-    }
-  }, [])
 
   // Prevent accidental back navigation (only needed when emails are loaded)
   useEffect(() => {
@@ -337,100 +323,179 @@ function App() {
         const emailsData = await Promise.all(emailPromises)
 
         // Filter out failed requests and format the emails
-        const formattedEmails = emailsData
-          .filter(email => email !== null)
-          .map(email => {
-            const headers = email.payload?.headers || []
+        // Helper functions for email processing
+        const fetchAttachment = async (messageId, attachmentId) => {
+          try {
+            const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/attachments/${attachmentId}`, {
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+              },
+            })
 
-            // Extract email body content
-            const getEmailBody = (payload) => {
-              if (!payload) return 'No content available'
+            if (response.ok) {
+              const attachmentData = await response.json()
+              return attachmentData.data
+            }
+          } catch (error) {
+            console.error('Error fetching attachment:', error)
+          }
+          return null
+        }
 
-              let content = ''
-              let mimeType = ''
+        const processInlineImages = async (htmlContent, messageId, payload) => {
+          const cidMap = new Map()
 
-              // Handle multipart messages
-              if (payload.parts && payload.parts.length > 0) {
-                // Prefer text/plain over text/html for better readability
-                const plainTextPart = payload.parts.find(part => part.mimeType === 'text/plain')
-                const htmlPart = payload.parts.find(part => part.mimeType === 'text/html')
-
-                const selectedPart = plainTextPart || htmlPart
-                if (selectedPart && selectedPart.body && selectedPart.body.data) {
-                  try {
-                    // Clean up base64 string before decoding
-                    const base64String = selectedPart.body.data
-                      .replace(/-/g, '+')
-                      .replace(/_/g, '/')
-                      // Ensure proper padding
-                      .padEnd(Math.ceil(selectedPart.body.data.length / 4) * 4, '=')
-
-                    content = atob(base64String)
-                    mimeType = selectedPart.mimeType
-                  } catch (e) {
-                    console.error('Error decoding email body:', e)
-                    // Fallback to using snippet
-                    content = email.snippet || ''
-                  }
-                }
+          // Collect all attachments with Content-ID headers
+          const collectAttachments = (part) => {
+            if (part.body && part.body.attachmentId && part.headers) {
+              const contentId = part.headers.find(h => h.name.toLowerCase() === 'content-id')
+              if (contentId) {
+                const cid = contentId.value.replace(/[<>]/g, '') // Remove < > brackets
+                cidMap.set(cid, {
+                  attachmentId: part.body.attachmentId,
+                  mimeType: part.mimeType
+                })
               }
-
-              // Handle single part message
-              if (!content && payload.body && payload.body.data) {
-                try {
-                  // Clean up base64 string before decoding
-                  const base64String = payload.body.data
-                    .replace(/-/g, '+')
-                    .replace(/_/g, '/')
-                    // Ensure proper padding
-                    .padEnd(Math.ceil(payload.body.data.length / 4) * 4, '=')
-
-                  content = atob(base64String)
-                  mimeType = payload.mimeType || 'text/plain'
-                } catch (e) {
-                  console.error('Error decoding email body:', e)
-                  // Fallback to using snippet
-                  content = email.snippet || ''
-                }
-              }
-
-              // Clean up and sanitize the content
-              if (content) {
-                // First, handle encoding issues and problematic characters
-                content = cleanTextContent(content)
-
-                if (mimeType === 'text/plain') {
-                  // Convert plain text to HTML with line breaks
-                  content = content
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;')
-                    .replace(/\n/g, '<br>')
-                } else if (mimeType === 'text/html') {
-                  // Basic HTML cleanup - remove script tags and clean up formatting
-                  content = content
-                    .replace(/<script[^>]*>.*?<\/script>/gi, '')
-                    .replace(/<style[^>]*>.*?<\/style>/gi, '')
-                    .replace(/style="[^"]*"/gi, '') // Remove inline styles
-                    .replace(/class="[^"]*"/gi, '') // Remove classes
-                }
-                return content
-              }
-
-              // Fallback to snippet
-              return email.snippet || 'No content available'
             }
 
-            return {
-              id: email.id,
-              subject: cleanTextContent(headers.find(h => h.name === 'Subject')?.value || 'No Subject'),
-              from: headers.find(h => h.name === 'From')?.value || 'Unknown Sender',
-              snippet: cleanTextContent(email.snippet || 'No preview available'),
-              body: getEmailBody(email.payload),
-              labelIds: email.labelIds || [],
-              threadId: email.threadId,
-              date: headers.find(h => h.name === 'Date')?.value
+            if (part.parts) {
+              part.parts.forEach(collectAttachments)
             }
-          })
+          }
+
+          collectAttachments(payload)
+
+          // Replace cid: references with data URLs
+          let processedHtml = htmlContent
+          for (const [cid, attachment] of cidMap) {
+            const attachmentData = await fetchAttachment(messageId, attachment.attachmentId)
+            if (attachmentData) {
+              // Convert base64url to regular base64
+              const base64Data = attachmentData.replace(/-/g, '+').replace(/_/g, '/')
+              const dataUrl = `data:${attachment.mimeType};base64,${base64Data}`
+
+              // Replace all cid: references
+              const cidRegex = new RegExp(`cid:${cid}`, 'gi')
+              processedHtml = processedHtml.replace(cidRegex, dataUrl)
+            }
+          }
+
+          return processedHtml
+        }
+
+        const sanitizeHtml = (html) => {
+          // Remove dangerous tags and attributes
+          return html
+            .replace(/<script[^>]*>.*?<\/script>/gis, '')
+            .replace(/<iframe[^>]*>.*?<\/iframe>/gis, '')
+            .replace(/<object[^>]*>.*?<\/object>/gis, '')
+            .replace(/<embed[^>]*>/gi, '')
+            .replace(/<applet[^>]*>.*?<\/applet>/gis, '')
+            .replace(/<form[^>]*>.*?<\/form>/gis, '')
+            .replace(/<input[^>]*>/gi, '')
+            .replace(/<button[^>]*>.*?<\/button>/gis, '')
+            .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '') // Remove event handlers
+            .replace(/javascript:/gi, '') // Remove javascript: URLs
+            .replace(/vbscript:/gi, '') // Remove vbscript: URLs
+            .replace(/data:(?!image)/gi, '') // Remove non-image data URLs
+            // Add safe styling to images
+            .replace(/<img([^>]*?)>/gi, '<img$1 style="max-width: 100%; height: auto; display: block; margin: 0.5rem 0;">')
+        }
+
+        const getEmailBody = async (payload, messageId) => {
+          if (!payload) return 'No content available'
+
+          let content = ''
+          let mimeType = 'text/html'
+
+          // Handle multipart messages - prefer HTML over plain text
+          if (payload.parts && payload.parts.length > 0) {
+            const htmlPart = payload.parts.find(part => part.mimeType === 'text/html')
+            const plainTextPart = payload.parts.find(part => part.mimeType === 'text/plain')
+
+            const selectedPart = htmlPart || plainTextPart
+            if (selectedPart && selectedPart.body && selectedPart.body.data) {
+              try {
+                // Clean up base64 string before decoding
+                const base64String = selectedPart.body.data
+                  .replace(/-/g, '+')
+                  .replace(/_/g, '/')
+                  // Ensure proper padding
+                  .padEnd(Math.ceil(selectedPart.body.data.length / 4) * 4, '=')
+
+                content = atob(base64String)
+                mimeType = selectedPart.mimeType
+              } catch (e) {
+                console.error('Error decoding email body:', e)
+                // Fallback to using snippet
+                content = email.snippet || ''
+              }
+            }
+          }
+
+          // Handle single part message
+          if (!content && payload.body && payload.body.data) {
+            try {
+              // Clean up base64 string before decoding
+              const base64String = payload.body.data
+                .replace(/-/g, '+')
+                .replace(/_/g, '/')
+                // Ensure proper padding
+                .padEnd(Math.ceil(payload.body.data.length / 4) * 4, '=')
+
+              content = atob(base64String)
+              mimeType = payload.mimeType || 'text/html'
+            } catch (e) {
+              console.error('Error decoding email body:', e)
+              // Fallback to using snippet
+              content = email.snippet || ''
+            }
+          }
+
+          // Process the content
+          if (content) {
+            // First, handle encoding issues and problematic characters
+            content = cleanTextContent(content)
+
+            if (mimeType === 'text/html') {
+              // Process inline images first
+              content = await processInlineImages(content, messageId, payload)
+              // Then sanitize the HTML
+              content = sanitizeHtml(content)
+            } else if (mimeType === 'text/plain') {
+              // Convert plain text to HTML with line breaks
+              content = content
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/\n/g, '<br>')
+            }
+            return content
+          }
+
+          // Fallback to snippet
+          return email.snippet || 'No content available'
+        }
+
+        // Process emails with async body processing
+        const formattedEmails = await Promise.all(
+          emailsData
+            .filter(email => email !== null)
+            .map(async email => {
+              const headers = email.payload?.headers || []
+
+              return {
+                id: email.id,
+                subject: cleanTextContent(headers.find(h => h.name === 'Subject')?.value || 'No Subject'),
+                from: headers.find(h => h.name === 'From')?.value || 'Unknown Sender',
+                snippet: cleanTextContent(email.snippet || 'No preview available'),
+                body: await getEmailBody(email.payload, email.id),
+                labelIds: email.labelIds || [],
+                threadId: email.threadId,
+                date: headers.find(h => h.name === 'Date')?.value
+              }
+            })
+        )
 
         console.log(`Successfully loaded ${formattedEmails.length} emails`)
         setEmails(formattedEmails)
