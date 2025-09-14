@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import EmailAnalysisDisplay from './EmailAnalysisDisplay'
 
-function SwipeableEmailCard({ email, onSwipeLeft, onSwipeRight, isTopCard = false, isSwiping = false, stackIndex = 0 }) {
+function SwipeableEmailCard({ email, onSwipeLeft, onSwipeRight, onAddToCalendar, eventInfo, isTopCard = false, isSwiping = false, stackIndex = 0 }) {
   const [isDragging, setIsDragging] = useState(false)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const [rotation, setRotation] = useState(0)
@@ -275,8 +275,10 @@ function SwipeableEmailCard({ email, onSwipeLeft, onSwipeRight, isTopCard = fals
           <div className="email-subject-center">
             {email.subject}
           </div>
-          <div className="email-date">
-            {email.date ? new Date(email.date).toLocaleDateString() : ''}
+          <div className="email-actions">
+            <div className="email-date">
+              {email.date ? new Date(email.date).toLocaleDateString() : ''}
+            </div>
           </div>
         </div>
 
@@ -325,6 +327,20 @@ function SwipeableEmailCard({ email, onSwipeLeft, onSwipeRight, isTopCard = fals
               </div>
             </a>
             <button
+              className={`gmail-button ${eventInfo?.result?.has_event ? '' : 'disabled'}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                if (eventInfo?.result?.has_event) onAddToCalendar?.(email)
+              }}
+              disabled={!eventInfo?.result?.has_event}
+              title={eventInfo?.result?.has_event ? 'Add to Google Calendar' : (eventInfo?.loading ? 'Detecting event…' : 'No event detected')}
+            >
+              <div className="gmail-button-content">
+                <div className="gmail-button-icon">📅</div>
+                <div className="gmail-button-text">Add to Calendar</div>
+              </div>
+            </button>
+            <button
               className="gmail-button swipe-button right"
               onClick={(e) => {
                 e.stopPropagation()
@@ -337,6 +353,7 @@ function SwipeableEmailCard({ email, onSwipeLeft, onSwipeRight, isTopCard = fals
               </div>
             </button>
           </div>
+          {null}
           {scrollLocked && (
             <div className="scroll-cooldown-indicator">
               <span>⏱️ Processing swipe...</span>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import SwipeableEmailCard from './SwipeableEmailCard'
 
-function EmailStack({ emails, currentFolder, onMarkRead, onApplyLabel, onAnalyzeAndSort, onFlagIncorrect, onRemainingCountChange }) {
+function EmailStack({ emails, currentFolder, onMarkRead, onApplyLabel, onAnalyzeAndSort, onFlagIncorrect, onRemainingCountChange, onAddToCalendar, getEventInfo }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [processedEmails, setProcessedEmails] = useState([])
   const [swipingCards, setSwipingCards] = useState(new Set())
@@ -139,6 +139,8 @@ function EmailStack({ emails, currentFolder, onMarkRead, onApplyLabel, onAnalyze
             email={email}
             onSwipeLeft={handleSwipeLeft}
             onSwipeRight={handleSwipeRight}
+            onAddToCalendar={onAddToCalendar}
+            eventInfo={getEventInfo ? getEventInfo(email.id) : null}
             isTopCard={index === 0}
             isSwiping={swipingCards.has(email.id)}
             stackIndex={index}
