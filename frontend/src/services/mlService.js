@@ -163,7 +163,7 @@ class MLService {
   /**
    * Rank emails by user preference
    */
-  async rankEmails(emails) {
+  async rankEmails(emails, streamType = 'smart') {
     try {
       // ML ranking is always enabled in demo mode
 
@@ -186,7 +186,8 @@ class MLService {
         },
         body: JSON.stringify({
           userId: this.userId,
-          emails: emailsWithTokens
+          emails: emailsWithTokens,
+          streamType: streamType
         })
       })
 
@@ -197,7 +198,7 @@ class MLService {
       const result = await response.json()
       const rankedEmails = result.success ? result.emails : emails
 
-      console.log(`Ranked ${rankedEmails.length} emails by user preferences`)
+      console.log(`Ranked ${rankedEmails.length} emails by ${streamType === 'smart' ? 'ML preferences + recency' : 'recency only'}`)
       return rankedEmails
     } catch (error) {
       console.error('Email ranking failed:', error)

@@ -212,7 +212,7 @@ app.post('/api/ml/score-email', async (req, res) => {
 // Rank emails by user preference
 app.post('/api/ml/rank-emails', async (req, res) => {
   try {
-    const { userId, emails } = req.body
+    const { userId, emails, streamType = 'smart' } = req.body
 
     if (!userId || !emails) {
       return res.status(400).json({
@@ -224,6 +224,8 @@ app.post('/api/ml/rank-emails', async (req, res) => {
       return res.status(400).json({ error: 'Emails must be an array' })
     }
 
+    console.log(`🧠 Ranking ${emails.length} emails for stream type: ${streamType}`)
+
     // Extract tokens for emails that don't have them
     const emailsWithTokens = await Promise.all(
       emails.map(async (email) => {
@@ -234,7 +236,7 @@ app.post('/api/ml/rank-emails', async (req, res) => {
       })
     )
 
-    const rankedEmails = await preferenceService.rankEmails(userId, emailsWithTokens)
+    const rankedEmails = await preferenceService.rankEmails(userId, emailsWithTokens, streamType)
 
     res.json({
       success: true,

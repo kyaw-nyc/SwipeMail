@@ -152,41 +152,65 @@ class PreferenceService {
   }
 
   /**
-   * Calculate preference score for a token
+   * Calculate preference score for a token using Laplace smoothing
    * @param {Object} tokenData - { right: number, left: number }
-   * @returns {number} - Preference score (-1 to 1)
+   * @returns {number} - Preference score (0 to 1)
    */
   calculateTokenScore(tokenData) {
-    // Direct implementation of: preference_score(token) = right_swipes - left_swipes
-    return tokenData.right - tokenData.left
+    if (!tokenData) return 0.5 // Default for unknown tokens
+
+    const positiveCount = tokenData.right || 0
+    const totalCount = (tokenData.right || 0) + (tokenData.left || 0)
+
+    // Laplace smoothing: (positive_count + 1) / (total_count + 2)
+    return (positiveCount + 1) / (totalCount + 2)
   }
 
   /**
    * Calculate email preference score
    * @param {string} userId - User identifier
    * @param {Array} tokens - Email tokens
-   * @returns {Promise<number>} - Email preference score (0 to 100)
+   * @param {Object} email - Email object with internalDate for recency factor
+   * @returns {Promise<number>} - Email preference score (0 to 1)
    */
-  async calculateEmailScore(userId, tokens) {
-    if (!tokens || tokens.length === 0) return 0 // Neutral score
+  async calculateEmailScore(userId, tokens, email = null) {
+    if (!tokens || tokens.length === 0) return 0.5 // Neutral score for no tokens
 
     try {
       const profile = await this.loadProfile(userId)
-      let totalScore = 0
+      let tokenScoreSum = 0
+      let validTokens = 0
 
-      // Sum preference scores: Σ(preference_score(token)) across all tokens
+      // Calculate average of token preference scores
       tokens.forEach(token => {
         const tokenData = profile.preferences[token]
-        if (tokenData) {
-          totalScore += this.calculateTokenScore(tokenData)
-        }
-        // Unknown tokens contribute 0 to the score
+        const tokenScore = this.calculateTokenScore(tokenData) // Returns 0.5 for unknown tokens
+        tokenScoreSum += tokenScore
+        validTokens++
       })
 
-      return totalScore
+      // Average token score (0 to 1)
+      const averageTokenScore = validTokens > 0 ? tokenScoreSum / validTokens : 0.5
+
+      // Calculate recency factor if email has date information
+      let recencyFactor = 0.5 // Default neutral recency
+      if (email && email.internalDate) {
+        const emailDate = parseInt(email.internalDate)
+        const now = Date.now()
+        const ageInDays = (now - emailDate) / (1000 * 60 * 60 * 24)
+
+        // Recency factor: newer emails get higher scores (0 to 1)
+        // Exponential decay with half-life of 7 days
+        recencyFactor = Math.exp(-ageInDays / 10) // Decays to ~0.37 after 10 days
+      }
+
+      // Blend token score (80%) with recency factor (20%)
+      const finalScore = (0.8 * averageTokenScore) + (0.2 * recencyFactor)
+
+      return finalScore
     } catch (error) {
       console.error('Failed to calculate email score:', error)
-      return 0
+      return 0.5
     }
   }
 
@@ -194,35 +218,47 @@ class PreferenceService {
    * Rank emails by user preference
    * @param {string} userId - User identifier
    * @param {Array} emails - Array of emails with tokens
+   * @param {string} streamType - 'smart' for ML ranking, 'unread' for recency only
    * @returns {Promise<Array>} - Sorted emails with preference scores
    */
-  async rankEmails(userId, emails) {
+  async rankEmails(userId, emails, streamType = 'smart') {
     if (!emails || emails.length === 0) return []
 
     try {
       const emailsWithScores = await Promise.all(
         emails.map(async (email) => {
           const tokens = email._tokens || []
-          const score = await this.calculateEmailScore(userId, tokens)
+          const score = await this.calculateEmailScore(userId, tokens, email)
           return {
             ...email,
             _preferenceScore: score,
-            _preferenceScorePercent: Math.max(0, Math.min(100, 50 + score)), // Display score (clamped 0-100, 50 = neutral)
+            // Convert 0-1 score to 0-100 for display (50 = neutral baseline)
+            _preferenceScorePercent: Math.round(score * 100),
             _tokens: tokens
           }
         })
       )
 
-      // Sort by preference score (descending), then by recency (internalDate descending) for tie-breaking
-      return emailsWithScores.sort((a, b) => {
-        if (a._preferenceScore !== b._preferenceScore) {
-          return b._preferenceScore - a._preferenceScore // Higher score first
-        }
-        // Tie-breaker: more recent first
-        const aDate = a.internalDate ? parseInt(a.internalDate) : 0
-        const bDate = b.internalDate ? parseInt(b.internalDate) : 0
-        return bDate - aDate
-      })
+      // Sort based on stream type
+      if (streamType === 'unread') {
+        // Unread stream: sort by recency only (most recent first)
+        return emailsWithScores.sort((a, b) => {
+          const aDate = a.internalDate ? parseInt(a.internalDate) : 0
+          const bDate = b.internalDate ? parseInt(b.internalDate) : 0
+          return bDate - aDate
+        })
+      } else {
+        // Smart stream: sort by ML preference score (highest first), then by recency for tie-breaking
+        return emailsWithScores.sort((a, b) => {
+          if (Math.abs(a._preferenceScore - b._preferenceScore) > 0.01) { // Avoid floating point comparison issues
+            return b._preferenceScore - a._preferenceScore // Higher score first
+          }
+          // Tie-breaker: more recent first
+          const aDate = a.internalDate ? parseInt(a.internalDate) : 0
+          const bDate = b.internalDate ? parseInt(b.internalDate) : 0
+          return bDate - aDate
+        })
+      }
     } catch (error) {
       console.error('Failed to rank emails:', error)
       return emails

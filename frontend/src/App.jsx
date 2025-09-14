@@ -1378,10 +1378,13 @@ function App() {
       try {
         await mlService.processEmailSwipe(email, 'not_interested')
 
-        // If in Smart Recommendations stream, recompute scores after swipe
+        // If in Smart Recommendations stream, recompute scores after swipe (with delay)
         if (currentStream?.id === 'smart') {
-          console.log('🧠 Recomputing Smart Recommendations after left swipe...')
-          await recomputeSmartRecommendations()
+          console.log('🧠 Scheduling Smart Recommendations recompute after left swipe...')
+          // Delay the recomputation to avoid interfering with swipe animation
+          setTimeout(() => {
+            recomputeSmartRecommendations()
+          }, 400) // Wait for swipe animation to complete
         }
       } catch (error) {
         console.warn('ML feedback failed but continuing with email action:', error)
@@ -1398,10 +1401,13 @@ function App() {
       try {
         await mlService.processEmailSwipe(email, 'interested')
 
-        // If in Smart Recommendations stream, recompute scores after swipe
+        // If in Smart Recommendations stream, recompute scores after swipe (with delay)
         if (currentStream?.id === 'smart') {
-          console.log('🧠 Recomputing Smart Recommendations after swipe...')
-          await recomputeSmartRecommendations()
+          console.log('🧠 Scheduling Smart Recommendations recompute after right swipe...')
+          // Delay the recomputation to avoid interfering with swipe animation
+          setTimeout(() => {
+            recomputeSmartRecommendations()
+          }, 400) // Wait for swipe animation to complete
         }
       } catch (error) {
         console.warn('ML feedback failed but continuing with email action:', error)
@@ -1416,13 +1422,15 @@ function App() {
   const recomputeSmartRecommendations = async () => {
     if (currentFolder === 'STREAM' && currentStream?.id === 'smart') {
       try {
-        const currentEmails = emails.filter(email => !email._processed)
-        if (currentEmails.length > 0) {
-          const rerankedEmails = await applyMLRanking(currentEmails, 'smart')
-          setEmails(rerankedEmails)
-        }
+        console.log('🧠 Learning from user preferences, but keeping normal swipe flow...')
+
+        // Just update the ML model in the background - don't disrupt the current swipe flow
+        // The updated preferences will be applied the next time the user refreshes Smart Recommendations
+        // or switches streams and comes back
+
+        console.log('🧠 ML feedback processed. Updated preferences will apply on next Smart Recommendations refresh.')
       } catch (error) {
-        console.warn('Failed to recompute Smart Recommendations:', error)
+        console.warn('Failed to process ML feedback:', error)
       }
     }
   }
@@ -1432,20 +1440,25 @@ function App() {
     const targetStreamId = streamId || currentStream?.id
     console.log(`🔍 applyMLRanking called with ${emailList.length} emails, currentFolder: ${currentFolder}, targetStream: ${targetStreamId}`)
     try {
-      if (currentFolder === 'STREAM' && targetStreamId === 'smart') {
-        // Set ML loading state
-        setMlLoading(true)
-        console.log(`🧠 Starting ML ranking for ${emailList.length} emails...`)
+      if (currentFolder === 'STREAM') {
+        // Set ML loading state for smart stream only
+        if (targetStreamId === 'smart') {
+          setMlLoading(true)
+          console.log(`🧠 Starting ML ranking for ${emailList.length} emails...`)
+        } else {
+          console.log(`📅 Processing ${emailList.length} emails for ${targetStreamId} stream (recency-based)`)
+        }
 
-        // Only apply ML ranking to smart stream
-        const rankedEmails = await mlService.rankEmails(emailList)
-        console.log(`🧠 Applied ML ranking - got ${rankedEmails.length} emails with scores:`, rankedEmails.map(e => ({id: e.id, score: e._preferenceScorePercent})))
+        // Apply ranking based on stream type
+        const streamType = targetStreamId === 'smart' ? 'smart' : 'unread'
+        const rankedEmails = await mlService.rankEmails(emailList, streamType)
+        console.log(`🧠 Applied ${streamType} ranking - got ${rankedEmails.length} emails with scores:`, rankedEmails.map(e => ({id: e.id, score: e._preferenceScorePercent})))
 
         // Clear ML loading state
         setMlLoading(false)
         return rankedEmails
       }
-      console.log(`🔍 Not applying ML ranking - wrong stream or folder`)
+      console.log(`🔍 Not applying ranking - not in stream mode`)
       return emailList
     } catch (error) {
       console.warn('ML ranking failed, using original order:', error)

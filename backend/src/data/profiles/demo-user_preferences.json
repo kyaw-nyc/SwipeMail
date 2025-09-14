@@ -1,83 +1,71 @@
 {
   "userId": "demo-user",
   "preferences": {
-    "business": {
+    "technology": {
       "right": 1,
-      "left": 0
+      "left": 18
     },
-    "announcement": {
-      "right": 4,
+    "career": {
+      "right": 0,
       "left": 7
     },
-    "meeting": {
+    "finance": {
+      "right": 0,
+      "left": 3
+    },
+    "marketing": {
       "right": 1,
-      "left": 0
+      "left": 18
     },
-    "news": {
+    "event": {
+      "right": 1,
+      "left": 3
+    },
+    "newsletter": {
+      "right": 1,
+      "left": 13
+    },
+    "urgent": {
       "right": 0,
-      "left": 2
+      "left": 7
     },
-    "promotion": {
-      "right": 2,
-      "left": 6
-    },
-    "local_news": {
+    "personal": {
       "right": 0,
-      "left": 1
+      "left": 3
+    },
+    "media": {
+      "right": 0,
+      "left": 3
+    },
+    "informational": {
+      "right": 0,
+      "left": 14
+    },
+    "entertainment": {
+      "right": 0,
+      "left": 3
     },
     "digital_access": {
       "right": 0,
       "left": 1
     },
-    "sale": {
+    "subscription": {
       "right": 0,
       "left": 1
     },
-    "informational": {
-      "right": 5,
-      "left": 14
-    },
-    "industry": {
+    "local_stories": {
       "right": 0,
-      "left": 2
+      "left": 1
     },
-    "media": {
+    "investigations": {
       "right": 0,
-      "left": 2
-    },
-    "web_development": {
-      "right": 1,
-      "left": 0
-    },
-    "newsletter": {
-      "right": 1,
-      "left": 2
-    },
-    "productivity": {
-      "right": 2,
-      "left": 4
-    },
-    "entertainment": {
-      "right": 2,
-      "left": 3
-    },
-    "informative": {
-      "right": 1,
-      "left": 0
-    },
-    "light-hearted": {
-      "right": 1,
-      "left": 0
-    },
-    "creative": {
-      "right": 1,
-      "left": 0
-    },
-    "design": {
-      "right": 1,
-      "left": 0
+      "left": 1
     },
     "here": {
+      "right": 0,
+      "left": 1
+    },
+    "the": {
       "right": 0,
       "left": 1
     },
@@ -101,220 +89,104 @@
       "right": 0,
       "left": 1
     },
-    "for": {
+    "e-commerce": {
       "right": 0,
-      "left": 1
+      "left": 3
     },
-    "the": {
+    "promotion": {
       "right": 0,
-      "left": 1
-    },
-    "technology": {
-      "right": 1,
-      "left": 6
+      "left": 9
     },
     "sales_pitch": {
-      "right": 2,
-      "left": 5
-    },
-    "marketing": {
-      "right": 1,
-      "left": 11
-    },
-    "trial_offer": {
       "right": 0,
-      "left": 1
+      "left": 7
     },
     "limited_time_offer": {
-      "right": 1,
+      "right": 0,
+      "left": 5
+    },
+    "retail": {
+      "right": 0,
+      "left": 3
+    },
+    "transactional": {
+      "right": 0,
+      "left": 3
+    },
+    "healthcare": {
+      "right": 0,
       "left": 2
     },
-    "writing": {
+    "announcement": {
       "right": 0,
-      "left": 1
-    },
-    "software": {
-      "right": 0,
-      "left": 1
-    },
-    "subscription": {
-      "right": 0,
-      "left": 1
-    },
-    "grammarly": {
-      "right": 0,
-      "left": 1
-    },
-    "writing_tool": {
-      "right": 0,
-      "left": 1
-    },
-    "productivity_tool": {
-      "right": 0,
-      "left": 1
-    },
-    "education": {
-      "right": 4,
       "left": 4
     },
-    "career": {
-      "right": 2,
-      "left": 6
-    },
-    "discount": {
-      "right": 0,
-      "left": 1
-    },
-    "online_courses": {
-      "right": 0,
-      "left": 1
-    },
-    "food_beverage": {
-      "right": 0,
-      "left": 1
-    },
-    "product_launch": {
-      "right": 0,
-      "left": 1
-    },
-    "promotional": {
+    "holiday": {
       "right": 0,
       "left": 2
     },
-    "finance": {
+    "industry": {
+      "right": 0,
+      "left": 4
+    },
+    "professional": {
       "right": 0,
       "left": 2
     },
-    "discounts": {
+    "business": {
       "right": 0,
-      "left": 1
+      "left": 12
     },
-    "offers": {
+    "directory": {
       "right": 0,
-      "left": 1
-    },
-    "online_learning": {
-      "right": 1,
-      "left": 1
-    },
-    "self_improvement": {
-      "right": 1,
       "left": 2
     },
-    "non_urgent": {
+    "services": {
       "right": 0,
-      "left": 1
+      "left": 4
     },
-    "non-profit": {
-      "right": 1,
-      "left": 0
-    },
-    "self-improvement": {
-      "right": 1,
-      "left": 0
-    },
-    "academic": {
-      "right": 2,
-      "left": 1
-    },
-    "learning": {
-      "right": 1,
-      "left": 1
-    },
-    "email_marketing": {
-      "right": 1,
+    "listings": {
+      "right": 0,
       "left": 2
     },
-    "online_resources": {
-      "right": 1,
-      "left": 1
-    },
-    "local": {
+    "contact_management": {
       "right": 0,
-      "left": 1
+      "left": 2
     },
-    "security": {
+    "productivity": {
       "right": 0,
-      "left": 1
-    },
-    "online_safety": {
-      "right": 0,
-      "left": 1
-    },
-    "identity_protection": {
-      "right": 0,
-      "left": 1
-    },
-    "pop culture": {
-      "right": 1,
-      "left": 1
-    },
-    "digital media": {
-      "right": 0,
-      "left": 1
+      "left": 4
     },
     "email marketing": {
       "right": 0,
       "left": 2
     },
-    "creative content": {
+    "international": {
       "right": 0,
-      "left": 1
+      "left": 2
+    },
+    "financial services": {
+      "right": 0,
+      "left": 2
+    },
+    "product": {
+      "right": 0,
+      "left": 2
+    },
+    "food_beverage": {
+      "right": 0,
+      "left": 2
     },
     "events": {
-      "right": 1,
-      "left": 0
-    },
-    "fiction": {
-      "right": 1,
-      "left": 0
-    },
-    "retail": {
       "right": 0,
-      "left": 1
+      "left": 2
     },
-    "customer_engagement": {
+    "digital_media": {
       "right": 0,
-      "left": 1
-    },
-    "summer_activities": {
-      "right": 0,
-      "left": 1
-    },
-    "travel": {
-      "right": 0,
-      "left": 1
-    },
-    "destinations": {
-      "right": 0,
-      "left": 1
-    },
-    "transportation": {
-      "right": 0,
-      "left": 1
-    },
-    "tourism": {
-      "right": 0,
-      "left": 1
-    },
-    "email_newsletter": {
-      "right": 0,
-      "left": 1
-    },
-    "advisory": {
-      "right": 1,
-      "left": 1
-    },
-    "services": {
-      "right": 1,
-      "left": 0
-    },
-    "personal": {
-      "right": 0,
-      "left": 1
+      "left": 2
     }
   },
-  "emailsProcessed": 30,
-  "lastUpdated": "2025-09-14T11:45:30.888Z",
+  "emailsProcessed": 35,
+  "lastUpdated": "2025-09-14T11:57:47.345Z",
   "version": "1.0"
 }
