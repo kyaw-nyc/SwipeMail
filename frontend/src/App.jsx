@@ -15,7 +15,7 @@ function App() {
   const [emails, setEmails] = useState([])
   const [streamEmails, setStreamEmails] = useState({
     starred: [],
-    'starred-duplicate': [],
+    unread: [],
     'inbox-all': []
   })
   const [loading, setLoading] = useState(false)
@@ -24,24 +24,53 @@ function App() {
   const [currentFolder, setCurrentFolder] = useState('STREAM')
   const [availableFolders, setAvailableFolders] = useState([])
   const [currentStream, setCurrentStream] = useState({
-    id: 'starred-duplicate',
+    id: 'unread',
     name: 'Unread Emails',
     description: 'Only unread emails from inbox',
     icon: '📬',
     query: 'is:unread'
   })
-  const [currentTimeRange, setCurrentTimeRange] = useState({
-    id: '1w',
-    label: 'Last week',
-    description: 'Past 7 days',
-    icon: '📊',
-    days: 7
+  // Time range settings per stream
+  const [streamTimeRanges, setStreamTimeRanges] = useState({
+    unread: {
+      id: '1w',
+      label: 'Last week',
+      shortLabel: '1w',
+      icon: '📅',
+      days: 7
+    },
+    starred: {
+      id: '1w',
+      label: 'Last week',
+      shortLabel: '1w',
+      icon: '📅',
+      days: 7
+    },
+    'inbox-all': {
+      id: '1w',
+      label: 'Last week',
+      shortLabel: '1w',
+      icon: '📅',
+      days: 7
+    }
   })
+  const [maxFetchedDays, setMaxFetchedDays] = useState(7) // Track the maximum time range we've fetched
+  const [allFetchedEmails, setAllFetchedEmails] = useState([]) // Store all fetched emails
+  const [atMaximumEmails, setAtMaximumEmails] = useState(false) // Track if we've reached the 10k limit
   const [remainingCount, setRemainingCount] = useState(0)
   const [loadTotal, setLoadTotal] = useState(0)
   const [loadProgress, setLoadProgress] = useState(0)
   const [eventModalOpen, setEventModalOpen] = useState(false)
   const [eventDraft, setEventDraft] = useState(null)
+
+  // Helper function to get current time range for the active stream
+  const getCurrentTimeRange = () => {
+    if (currentFolder === 'STREAM' && currentStream?.id) {
+      return streamTimeRanges[currentStream.id] || streamTimeRanges.unread
+    }
+    // For AI folders, use a default time range
+    return streamTimeRanges.unread
+  }
   const [eventSubmitting, setEventSubmitting] = useState(false)
 
   // Initialize Cerebras analysis hook
@@ -388,7 +417,12 @@ function App() {
     setCurrentFolder('STREAM')
     // Use cached emails if available, no need to refetch
     if (streamsLoaded) {
-      setEmails(streamEmails[stream.id] || [])
+      const streamEmail = streamEmails[stream.id] || []
+      // Apply the time range specific to this stream
+      const streamTimeRange = streamTimeRanges[stream.id] || streamTimeRanges.unread
+      const filteredEmails = filterEmailsByTimeRange(streamEmail, streamTimeRange.days)
+      setEmails(filteredEmails)
+      setAllFetchedEmails(streamEmail) // Store unfiltered emails for future filtering
     } else {
       fetchEmails('STREAM')
     }
@@ -396,30 +430,87 @@ function App() {
 
   const handleTimeRangeChange = (timeRange) => {
     console.log('Time range changed to:', timeRange.label)
-    setCurrentTimeRange(timeRange)
-    // Clear current emails and refetch with new time range
-    setEmails([])
-    setStreamEmails({}) // Clear cached stream emails
-    // Refetch current view with new time range
-    if (currentFolder === 'STREAM') {
-      loadAllStreams()
+
+    // Update the time range for the current stream
+    if (currentFolder === 'STREAM' && currentStream?.id) {
+      setStreamTimeRanges(prev => ({
+        ...prev,
+        [currentStream.id]: timeRange
+      }))
+    }
+
+    const newDays = timeRange.days
+    const needsRefetch = !newDays || (newDays > maxFetchedDays) // "All time" or expanding time range
+
+    if (needsRefetch) {
+      console.log('🔄 Refetching emails for expanded time range')
+      // Clear current emails and refetch with new time range
+      setEmails([])
+      setStreamEmails({}) // Clear cached stream emails
+      setAllFetchedEmails([])
+      setMaxFetchedDays(newDays || Infinity)
+
+      // Refetch current view with new time range
+      if (currentFolder === 'STREAM') {
+        loadAllStreams()
+      } else {
+        fetchEmails(currentFolder)
+      }
     } else {
-      fetchEmails(currentFolder)
+      console.log('📋 Filtering existing emails for narrower time range')
+      // Just filter existing emails
+      if (currentFolder === 'STREAM') {
+        // Filter stream emails
+        const filteredStreamEmails = {}
+        Object.keys(streamEmails).forEach(streamId => {
+          filteredStreamEmails[streamId] = filterEmailsByTimeRange(streamEmails[streamId], newDays)
+        })
+        setStreamEmails(filteredStreamEmails)
+
+        // Update current emails if viewing a stream
+        if (currentStream) {
+          setEmails(filteredStreamEmails[currentStream.id] || [])
+        }
+      } else {
+        // Filter folder emails
+        const filteredEmails = filterEmailsByTimeRange(allFetchedEmails, newDays)
+        setEmails(filteredEmails)
+      }
     }
   }
 
   // Helper function to build query with time range
-  const buildQueryWithTimeRange = (baseQuery) => {
-    if (!currentTimeRange.days) {
+  const buildQueryWithTimeRange = (baseQuery, days = getCurrentTimeRange().days) => {
+    if (!days) {
       // "All time" - no date restriction
       return baseQuery
     }
 
-    const date = new Date()
-    date.setDate(date.getDate() - currentTimeRange.days)
-    const afterDate = date.toISOString().split('T')[0] // YYYY-MM-DD format
+    const cutoffDate = new Date()
+    cutoffDate.setDate(cutoffDate.getDate() - days)
+    cutoffDate.setHours(0, 0, 0, 0) // Start of day for consistent filtering
+    const afterTimestamp = Math.floor(cutoffDate.getTime() / 1000) // Convert to seconds since epoch
 
-    return `${baseQuery} after:${afterDate}`
+    const query = `${baseQuery} after:${afterTimestamp}`
+    console.log(`🕒 Time filter: ${days} days ago (${cutoffDate.toISOString()}) = timestamp ${afterTimestamp}`)
+    console.log(`📋 Final query: "${query}"`)
+    return query
+  }
+
+  // Helper function to filter emails by time range
+  const filterEmailsByTimeRange = (emails, days) => {
+    if (!days) return emails // "All time"
+
+    const cutoffDate = new Date()
+    cutoffDate.setDate(cutoffDate.getDate() - days)
+
+    return emails.filter(email => {
+      if (email.internalDate) {
+        const emailDate = new Date(parseInt(email.internalDate))
+        return emailDate >= cutoffDate
+      }
+      return true // Include emails without date info
+    })
   }
 
   // Function to clean and sanitize text content
@@ -507,16 +598,16 @@ function App() {
     }
   }
 
-  const fetchEmailsWithQuery = async (query) => {
+  // Debug function to fetch without time filtering
+  const fetchEmailsWithQueryNoTimeFilter = async (query) => {
     try {
       if (!accessToken) {
         console.log('No access token available. User needs to sign in with Gmail permissions.')
         return []
       }
 
-      const queryWithTimeRange = buildQueryWithTimeRange(query)
-      console.log(`📧 Fetching emails with query: "${queryWithTimeRange}"`)
-      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=500&q=${encodeURIComponent(queryWithTimeRange)}`
+      console.log(`📧 Fetching emails with query (NO TIME FILTER): "${query}"`)
+      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10000&q=${encodeURIComponent(query)}`
       console.log(`🌐 Request URL: ${url}`)
 
       // Fetch messages from Gmail API
@@ -546,6 +637,71 @@ function App() {
 
       console.log(`✅ Found ${data.messages.length} messages for query "${query}", fetching details...`)
 
+      // Check if we've reached the maximum
+      if (data.messages.length === 10000) {
+        console.log(`🚨 MAXIMUM REACHED: Fetched 10,000 emails (the maximum allowed)`)
+        setAtMaximumEmails(true)
+      } else {
+        setAtMaximumEmails(false)
+      }
+
+      // Fetch details for each message (reuse existing email processing logic)
+      const result = await processEmailDetails(data.messages)
+      console.log(`🎯 Processed ${result.length} emails for query "${query}"`)
+      return result
+    } catch (error) {
+      console.error('Error fetching emails:', error)
+      return []
+    }
+  }
+
+  const fetchEmailsWithQuery = async (query) => {
+    try {
+      if (!accessToken) {
+        console.log('No access token available. User needs to sign in with Gmail permissions.')
+        return []
+      }
+
+      const queryWithTimeRange = buildQueryWithTimeRange(query)
+      console.log(`📧 Fetching emails with query: "${queryWithTimeRange}"`)
+      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10000&q=${encodeURIComponent(queryWithTimeRange)}`
+      console.log(`🌐 Request URL: ${url}`)
+
+      // Fetch messages from Gmail API
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      console.log(`📡 API Response status: ${response.status}`)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`❌ Gmail API error: ${response.status} ${response.statusText}`, errorText)
+        throw new Error(`Gmail API error: ${response.status} ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      console.log('📋 Raw API response:', data)
+
+      if (!data.messages || data.messages.length === 0) {
+        console.log(`⚠️ No messages found for query: "${query}"`)
+        console.log(`📊 API response:`, data)
+        return []
+      }
+
+      console.log(`✅ Found ${data.messages.length} messages for query "${query}", fetching details...`)
+
+      // Check if we've reached the maximum
+      if (data.messages.length === 10000) {
+        console.log(`🚨 MAXIMUM REACHED: Fetched 10,000 emails (the maximum allowed)`)
+        setAtMaximumEmails(true)
+      } else {
+        setAtMaximumEmails(false)
+      }
+
       // Fetch details for each message (reuse existing email processing logic)
       const result = await processEmailDetails(data.messages)
       console.log(`🎯 Processed ${result.length} emails for query "${query}"`)
@@ -567,7 +723,7 @@ function App() {
       // Convert labelId to query for time filtering support
       const baseQuery = `label:${labelId}`
       const queryWithTimeRange = buildQueryWithTimeRange(baseQuery)
-      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=500&q=${encodeURIComponent(queryWithTimeRange)}`
+      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10000&q=${encodeURIComponent(queryWithTimeRange)}`
       console.log(`🌐 Request URL: ${url}`)
 
       // Fetch messages from Gmail API
@@ -595,6 +751,14 @@ function App() {
       }
 
       console.log(`✅ Found ${data.messages.length} messages for labelId "${labelId}", fetching details...`)
+
+      // Check if we've reached the maximum
+      if (data.messages.length === 10000) {
+        console.log(`🚨 MAXIMUM REACHED: Fetched 10,000 emails (the maximum allowed)`)
+        setAtMaximumEmails(true)
+      } else {
+        setAtMaximumEmails(false)
+      }
 
       // Fetch details for each message (reuse existing email processing logic)
       const result = await processEmailDetails(data.messages)
@@ -823,7 +987,7 @@ function App() {
 
     try {
       const streams = [
-        { id: 'starred-duplicate', query: 'is:unread' },
+        { id: 'unread', query: 'is:unread' },
         { id: 'starred', query: 'is:starred' },
         { id: 'inbox-all', labelId: 'INBOX' },
       ]
@@ -861,10 +1025,17 @@ function App() {
       setStreamsLoaded(true)
 
       // Set current emails to the current stream
-      setEmails(newStreamEmails[currentStream.id] || [])
+      const currentStreamEmails = newStreamEmails[currentStream.id] || []
+      setEmails(currentStreamEmails)
+      setAllFetchedEmails(currentStreamEmails) // Store for filtering
+
+      // Update maxFetchedDays if we fetched with current time range
+      if (currentTimeRange.days && currentTimeRange.days > maxFetchedDays) {
+        setMaxFetchedDays(currentTimeRange.days)
+      }
 
       console.log('All streams loaded successfully:', {
-        'unread (starred-duplicate)': newStreamEmails['starred-duplicate']?.length || 0,
+        unread: newStreamEmails.unread?.length || 0,
         starred: newStreamEmails.starred?.length || 0,
         'inbox-all': newStreamEmails['inbox-all']?.length || 0,
       })
@@ -1071,7 +1242,7 @@ function App() {
 
       // For SwipeMail AI folders (custom labels) - fetch directly
       const query = `labelIds=${folderId}`
-      const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=500&${query}`, {
+      const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10000&${query}`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
@@ -1095,6 +1266,12 @@ function App() {
 
       console.log(`Successfully loaded ${formattedEmails.length} emails`)
       setEmails(formattedEmails)
+      setAllFetchedEmails(formattedEmails) // Store all fetched emails for filtering
+
+      // Update maxFetchedDays if we fetched with current time range
+      if (currentTimeRange.days && currentTimeRange.days > maxFetchedDays) {
+        setMaxFetchedDays(currentTimeRange.days)
+      }
 
     } catch (error) {
       console.error('Error fetching emails:', error)
@@ -1184,7 +1361,7 @@ function App() {
               onFolderChange={handleFolderChange}
               currentStream={currentStream}
               onStreamChange={handleStreamChange}
-              currentTimeRange={currentTimeRange}
+              currentTimeRange={getCurrentTimeRange()}
               onTimeRangeChange={handleTimeRangeChange}
             />
             <div className="email-section">
@@ -1213,6 +1390,11 @@ function App() {
                   <div className="email-section-header">
                     <div className="remaining-count">
                       {remainingCount} remaining
+                      {atMaximumEmails && (
+                        <span className="maximum-indicator">
+                          📊 Maximum (10,000 emails)
+                        </span>
+                      )}
                     </div>
                   </div>
                   <EmailStack
