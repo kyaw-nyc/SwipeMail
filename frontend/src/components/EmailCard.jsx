@@ -1,4 +1,4 @@
-function EmailCard({ email, onMarkRead, onApplyLabel }) {
+function EmailCard({ email, onMarkRead, onApplyLabel, showMLScore = false }) {
   const truncateText = (text, maxLength) => {
     if (text.length <= maxLength) return text
     return text.substring(0, maxLength) + '...'
@@ -18,6 +18,11 @@ function EmailCard({ email, onMarkRead, onApplyLabel }) {
 
   return (
     <div className="email-card">
+      {showMLScore && email._preferenceScorePercent !== undefined && (
+        <div className="ml-score-badge">
+          {email._preferenceScorePercent}
+        </div>
+      )}
       <div className="email-header">
         <div className="email-from">
           <strong>{extractName(email.from)}</strong>

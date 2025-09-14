@@ -8,6 +8,7 @@ import { useCerebrasAnalysis } from './hooks/useCerebrasAnalysis'
 import cerebrasApi from './services/cerebrasApi'
 import { createCalendarEvent } from './services/calendar'
 import EventConfirmModal from './components/EventConfirmModal'
+import mlService from './services/mlService'
 import './App.css'
 
 function App() {
@@ -16,6 +17,7 @@ function App() {
   const [emails, setEmails] = useState([])
   const [streamEmails, setStreamEmails] = useState({ unread: [] })
   const [loading, setLoading] = useState(false)
+  const [mlLoading, setMlLoading] = useState(false)
   const [streamsLoaded, setStreamsLoaded] = useState(false)
   const [checkingAuth, setCheckingAuth] = useState(true)
   const [currentFolder, setCurrentFolder] = useState('STREAM')
@@ -23,7 +25,7 @@ function App() {
   const [currentStream, setCurrentStream] = useState({
     id: 'unread',
     name: 'Unread Emails',
-    description: 'Only unread emails from inbox',
+    description: 'Recent unread emails (chronological)',
     icon: '📬',
     query: 'is:unread'
   })
@@ -35,6 +37,13 @@ function App() {
       shortLabel: '24h',
       icon: '🕐',
       days: 1
+    },
+    smart: {
+      id: '3d',
+      label: 'Last 3 days',
+      shortLabel: '3d',
+      icon: '🕒',
+      days: 3
     }
   })
   const [maxFetchedDays, setMaxFetchedDays] = useState(7) // Track the maximum time range we've fetched
@@ -504,7 +513,6 @@ function App() {
           setStreamEmails((prev) => ({ ...prev, unread: next }))
 
           // Preserve current emails if we're switching back to the same stream
-          // Only reset if the current emails are from a different source (folders)
           const currentIsFromSameStream = currentFolder === 'STREAM' && currentStream?.id === stream.id
           if (!currentIsFromSameStream) {
             console.log('🔄 Loading fresh emails for stream switch')
@@ -512,8 +520,23 @@ function App() {
             setAllFetchedEmails(next)
           } else {
             console.log('📌 Preserving current swiped state for same stream')
-            // Update the backend data but keep current UI state
             setAllFetchedEmails(next)
+          }
+        } else if (stream.id === 'smart') {
+          const master = masterUnreadEmails.length ? masterUnreadEmails : await loadMasterUnread()
+          const timeFiltered = filterEmailsByTimeRange(master, days)
+          const smartRanked = await applyMLRanking(timeFiltered)
+          setStreamEmails((prev) => ({ ...prev, smart: smartRanked }))
+
+          // Preserve current emails if we're switching back to the same stream
+          const currentIsFromSameStream = currentFolder === 'STREAM' && currentStream?.id === stream.id
+          if (!currentIsFromSameStream) {
+            console.log('🔄 Loading fresh emails for smart stream switch')
+            setEmails(smartRanked)
+            setAllFetchedEmails(smartRanked)
+          } else {
+            console.log('📌 Preserving current swiped state for same smart stream')
+            setAllFetchedEmails(smartRanked)
           }
         } else if (stream.id === 'inbox-all') {
           const next = await fetchEmailsWithLabelId('INBOX', days)
@@ -570,10 +593,11 @@ function App() {
       try {
         if (currentFolder === 'STREAM' && currentStream?.id === 'unread') {
           const emails = await fetchEmailsWithQuery('is:unread', newDays)
-          setMasterUnreadEmails(emails) // Update master cache
-          setStreamEmails(prev => ({ ...prev, unread: emails }))
-          setEmails(emails)
-          setAllFetchedEmails(emails)
+          const rankedEmails = await applyMLRanking(emails)
+          setMasterUnreadEmails(rankedEmails) // Update master cache
+          setStreamEmails(prev => ({ ...prev, unread: rankedEmails }))
+          setEmails(rankedEmails)
+          setAllFetchedEmails(rankedEmails)
           setFetchedTimeRange(timeRange) // Update what we've fetched
           setMaxFetchedDays(newDays || Infinity)
         } else if (currentFolder === 'STREAM') {
@@ -599,6 +623,12 @@ function App() {
           const filtered = filterEmailsByTimeRange(source, newDays)
           setEmails(filtered)
           setStreamEmails(prev => ({ ...prev, unread: filtered }))
+        } else if (currentStream?.id === 'smart') {
+          const source = masterUnreadEmails.length ? masterUnreadEmails : allFetchedEmails
+          const filtered = filterEmailsByTimeRange(source, newDays)
+          const smartRanked = await applyMLRanking(filtered)
+          setEmails(smartRanked)
+          setStreamEmails(prev => ({ ...prev, smart: smartRanked }))
         }
       } else {
         const filtered = filterEmailsByTimeRange(allFetchedEmails, newDays)
@@ -655,7 +685,7 @@ function App() {
   }
 
   // Paginated fetch for Gmail message ids for a query
-  const fetchAllMessageIdsByQuery = async (q, max = 4000) => {
+  const fetchAllMessageIdsByQuery = async (q, max = 5) => {
     const results = []
     let pageToken = undefined
     while (results.length < max) {
@@ -682,7 +712,7 @@ function App() {
     setLoading(true)
     try {
       console.log('📥 Loading master unread cache (all unread emails)...')
-      const ids = await fetchAllMessageIdsByQuery('in:inbox is:unread')
+      const ids = await fetchAllMessageIdsByQuery('in:inbox is:unread', 5)
       if (!ids.length) {
         setMasterUnreadEmails([])
         return []
@@ -720,6 +750,22 @@ function App() {
         setStreamEmails((prev) => ({ ...prev, unread: emailsForRange }))
         setEmails(emailsForRange)
         setAllFetchedEmails(emailsForRange)
+      } else if (streamId === 'smart') {
+        let base = masterUnreadEmails
+        if (!base.length) {
+          const loaded = await loadMasterUnread()
+          base = loaded
+        }
+        let emailsForRange = filterEmailsByTimeRange(base, days)
+        if (!emailsForRange.length) {
+          console.log('ℹ️ Master unread cache returned no emails for this timeframe; falling back to direct fetch')
+          emailsForRange = await fetchEmailsWithQuery('is:unread', days)
+        }
+        // Apply ML ranking for smart stream
+        const smartRanked = await applyMLRanking(emailsForRange)
+        setStreamEmails((prev) => ({ ...prev, smart: smartRanked }))
+        setEmails(smartRanked)
+        setAllFetchedEmails(smartRanked)
       } else if (streamId === 'inbox-all') {
         const emailsForRange = await fetchEmailsWithLabelId('INBOX', days)
         setStreamEmails((prev) => ({ ...prev, ['inbox-all']: emailsForRange }))
@@ -847,7 +893,7 @@ function App() {
       }
 
       console.log(`📧 Fetching emails with query (NO TIME FILTER): "${query}"`)
-      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10000&q=${encodeURIComponent(query)}`
+      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5&q=${encodeURIComponent(query)}`
       console.log(`🌐 Request URL: ${url}`)
 
       // Fetch messages from Gmail API
@@ -904,7 +950,7 @@ function App() {
 
       const queryWithTimeRange = buildQueryWithTimeRange(query, daysOverride)
       console.log(`📧 Fetching emails with query (paginated): "${queryWithTimeRange}"`)
-      const ids = await fetchAllMessageIdsByQuery(queryWithTimeRange, 2000)
+      const ids = await fetchAllMessageIdsByQuery(queryWithTimeRange, 5)
       if (!ids.length) return []
       const result = await processEmailDetails(ids)
       console.log(`🎯 Processed ${result.length} emails for query "${query}"`)
@@ -927,7 +973,7 @@ function App() {
       // Use Gmail API messages endpoint with labelIds parameter
       const results = []
       let pageToken = undefined
-      const maxResults = 2000
+      const maxResults = 5
 
       while (results.length < maxResults) {
         const url = new URL('https://gmail.googleapis.com/gmail/v1/users/me/messages')
@@ -1245,7 +1291,8 @@ function App() {
 
     try {
       const streams = [
-        { id: 'unread', query: 'is:unread' }
+        { id: 'unread', query: 'is:unread' },
+        { id: 'smart', query: 'is:unread', mlPowered: true }
       ]
 
       // Fetch all streams in parallel
@@ -1257,6 +1304,14 @@ function App() {
             const days = daysOverride ?? getCurrentTimeRange().days
             const emails = filterEmailsByTimeRange(master, days)
             return { id: stream.id, emails }
+          } else if (stream.id === 'smart') {
+            const master = masterUnreadEmails.length ? masterUnreadEmails : await loadMasterUnread()
+            // Derive window from master for display
+            const days = daysOverride ?? getCurrentTimeRange().days
+            const timeFiltered = filterEmailsByTimeRange(master, days)
+            // Apply ML ranking for smart stream
+            const smartRanked = await applyMLRanking(timeFiltered)
+            return { id: stream.id, emails: smartRanked }
           } else if (stream.query) {
             console.log(`🔍 Fetching stream ${stream.id} with query: "${stream.query}"`)
             const emails = await fetchEmailsWithQuery(stream.query, daysOverride)
@@ -1286,10 +1341,11 @@ function App() {
       setStreamEmails(newStreamEmails)
       setStreamsLoaded(true)
 
-      // Set current emails to the current stream
+      // Set current emails to the current stream with ML ranking
       const currentStreamEmails = newStreamEmails[currentStream.id] || []
-      setEmails(currentStreamEmails)
-      setAllFetchedEmails(currentStreamEmails) // Store for filtering
+      const rankedEmails = await applyMLRanking(currentStreamEmails)
+      setEmails(rankedEmails)
+      setAllFetchedEmails(rankedEmails) // Store for filtering
 
       // Update maxFetchedDays if we fetched with current time range
       const curRange = getCurrentTimeRange()
@@ -1304,6 +1360,62 @@ function App() {
       console.error('Error loading streams:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  // ML-enhanced email action handlers
+  const markAsReadWithML = async (emailId) => {
+    // Find the email object to get its data for ML processing
+    const email = [...streamEmails.unread, ...emails].find(e => e.id === emailId)
+
+    if (email && currentFolder === 'STREAM') {
+      // Process ML feedback for "not interested" action (left swipe in stream)
+      try {
+        await mlService.processEmailSwipe(email, 'not_interested')
+      } catch (error) {
+        console.warn('ML feedback failed but continuing with email action:', error)
+      }
+    }
+
+    // Call the original function
+    return await markAsRead(emailId)
+  }
+
+  const analyzeAndSortEmailWithML = async (email) => {
+    if (currentFolder === 'STREAM') {
+      // Process ML feedback for "interested" action (right swipe in stream)
+      try {
+        await mlService.processEmailSwipe(email, 'interested')
+      } catch (error) {
+        console.warn('ML feedback failed but continuing with email action:', error)
+      }
+    }
+
+    // Call the original function
+    return await analyzeAndSortEmail(email)
+  }
+
+  // Enhanced email ranking with ML (only for smart stream)
+  const applyMLRanking = async (emailList) => {
+    try {
+      if (currentFolder === 'STREAM' && currentStream?.id === 'smart') {
+        // Set ML loading state
+        setMlLoading(true)
+        console.log(`🧠 Starting ML ranking for ${emailList.length} emails...`)
+
+        // Only apply ML ranking to smart stream
+        const rankedEmails = await mlService.rankEmails(emailList)
+        console.log(`🧠 Applied ML ranking to ${emailList.length} emails for Smart Stream`)
+
+        // Clear ML loading state
+        setMlLoading(false)
+        return rankedEmails
+      }
+      return emailList
+    } catch (error) {
+      console.warn('ML ranking failed, using original order:', error)
+      setMlLoading(false) // Clear loading state on error
+      return emailList
     }
   }
 
@@ -1705,10 +1817,12 @@ function App() {
               onAddFolder={() => setCustomFolderModalOpen(true)}
             />
             <div className="email-section">
-              {loading ? (
+              {loading || mlLoading ? (
                 <div className="loading">
                   <p>{
-                    currentFolder === 'STREAM'
+                    mlLoading && currentFolder === 'STREAM' && currentStream?.id === 'smart'
+                      ? '🧠 AI analyzing and ranking emails by your preferences...'
+                      : currentFolder === 'STREAM'
                       ? `Loading ${currentStream?.name || 'stream'}...`
                       : (() => {
                           const folder = availableFolders.find(f => f.id === currentFolder)
@@ -1752,13 +1866,14 @@ function App() {
                     key={`stack-${currentFolder}-${currentStream?.id || 'none'}-${(getCurrentTimeRange()?.id) || 'all'}-v${timeRangeVersion}`}
                     emails={emails}
                     currentFolder={currentFolder}
-                    onMarkRead={markAsRead}
+                    onMarkRead={markAsReadWithML}
                     onApplyLabel={applyLabel}
-                    onAnalyzeAndSort={analyzeAndSortEmail}
+                    onAnalyzeAndSort={analyzeAndSortEmailWithML}
                     onFlagIncorrect={flagIncorrectSorting}
                     onRemainingCountChange={setRemainingCount}
                     onAddToCalendar={handleAddToCalendar}
                     getEventInfo={(id) => eventAnalysis[id]}
+                    showMLScores={currentFolder === 'STREAM' && currentStream?.id === 'smart'}
                   />
                 </>
               )}

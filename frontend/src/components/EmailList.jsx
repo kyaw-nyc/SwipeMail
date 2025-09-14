@@ -1,6 +1,6 @@
 import EmailCard from './EmailCard'
 
-function EmailList({ emails, onMarkRead, onApplyLabel }) {
+function EmailList({ emails, onMarkRead, onApplyLabel, showMLScores = false }) {
   if (emails.length === 0) {
     return (
       <div className="empty-state">
@@ -28,6 +28,7 @@ function EmailList({ emails, onMarkRead, onApplyLabel }) {
             email={email}
             onMarkRead={onMarkRead}
             onApplyLabel={onApplyLabel}
+            showMLScore={showMLScores}
           />
         ))}
       </div>

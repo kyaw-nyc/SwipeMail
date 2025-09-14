@@ -2,6 +2,10 @@ const express = require('express')
 const cors = require('cors')
 require('dotenv').config()
 
+// Import ML services
+const cerebrasService = require('./src/services/cerebrasService')
+const preferenceService = require('./src/services/preferenceService')
+
 const app = express()
 const PORT = process.env.PORT || 3001
 
@@ -87,10 +91,204 @@ app.get('/api/mock', (req, res) => {
 // PUT /api/user/settings - Update user settings
 // GET /api/user/stats - Get email statistics
 
-// TODO: Add AI/ML endpoints for future features
-// POST /api/emails/classify - Classify email content
-// GET /api/emails/insights - Get email insights and analytics
-// POST /api/emails/smart-reply - Generate smart reply suggestions
+// AI/ML endpoints
+// Extract tokens from email content
+app.post('/api/ml/extract-tokens', async (req, res) => {
+  try {
+    const { subject, body } = req.body
+
+    if (!subject && !body) {
+      return res.status(400).json({ error: 'Subject or body is required' })
+    }
+
+    const tokens = await cerebrasService.extractTokens(subject || '', body || '')
+
+    res.json({
+      success: true,
+      tokens,
+      metadata: {
+        subject: subject || '',
+        bodyLength: body ? body.length : 0,
+        timestamp: new Date().toISOString()
+      }
+    })
+  } catch (error) {
+    console.error('Token extraction error:', error)
+    res.status(500).json({
+      error: 'Failed to extract tokens',
+      message: error.message
+    })
+  }
+})
+
+// Update user preferences based on swipe
+app.post('/api/ml/update-preferences', async (req, res) => {
+  try {
+    const { userId, tokens, action } = req.body
+
+    if (!userId || !tokens || !action) {
+      return res.status(400).json({
+        error: 'Missing required fields: userId, tokens, action'
+      })
+    }
+
+    if (!Array.isArray(tokens)) {
+      return res.status(400).json({ error: 'Tokens must be an array' })
+    }
+
+    if (!['left', 'right', 'interested', 'not_interested'].includes(action)) {
+      return res.status(400).json({
+        error: 'Action must be left, right, interested, or not_interested'
+      })
+    }
+
+    const preferences = await preferenceService.updatePreferences(userId, tokens, action)
+
+    res.json({
+      success: true,
+      preferences,
+      message: `Updated preferences for ${tokens.length} tokens`
+    })
+  } catch (error) {
+    console.error('Preference update error:', error)
+    res.status(500).json({
+      error: 'Failed to update preferences',
+      message: error.message
+    })
+  }
+})
+
+// Get user preference profile
+app.get('/api/ml/profile/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params
+
+    const profile = await preferenceService.loadProfile(userId)
+    const insights = await preferenceService.getPreferenceInsights(userId)
+
+    res.json({
+      success: true,
+      profile,
+      insights
+    })
+  } catch (error) {
+    console.error('Profile fetch error:', error)
+    res.status(500).json({
+      error: 'Failed to fetch profile',
+      message: error.message
+    })
+  }
+})
+
+// Calculate preference score for email
+app.post('/api/ml/score-email', async (req, res) => {
+  try {
+    const { userId, tokens } = req.body
+
+    if (!userId || !tokens) {
+      return res.status(400).json({
+        error: 'Missing required fields: userId, tokens'
+      })
+    }
+
+    const score = await preferenceService.calculateEmailScore(userId, tokens)
+
+    res.json({
+      success: true,
+      score,
+      tokens,
+      timestamp: new Date().toISOString()
+    })
+  } catch (error) {
+    console.error('Email scoring error:', error)
+    res.status(500).json({
+      error: 'Failed to score email',
+      message: error.message
+    })
+  }
+})
+
+// Rank emails by user preference
+app.post('/api/ml/rank-emails', async (req, res) => {
+  try {
+    const { userId, emails } = req.body
+
+    if (!userId || !emails) {
+      return res.status(400).json({
+        error: 'Missing required fields: userId, emails'
+      })
+    }
+
+    if (!Array.isArray(emails)) {
+      return res.status(400).json({ error: 'Emails must be an array' })
+    }
+
+    // Extract tokens for emails that don't have them
+    const emailsWithTokens = await Promise.all(
+      emails.map(async (email) => {
+        if (!email._tokens) {
+          email._tokens = await preferenceService.processEmailTokens(userId, email)
+        }
+        return email
+      })
+    )
+
+    const rankedEmails = await preferenceService.rankEmails(userId, emailsWithTokens)
+
+    res.json({
+      success: true,
+      emails: rankedEmails,
+      totalEmails: rankedEmails.length,
+      timestamp: new Date().toISOString()
+    })
+  } catch (error) {
+    console.error('Email ranking error:', error)
+    res.status(500).json({
+      error: 'Failed to rank emails',
+      message: error.message
+    })
+  }
+})
+
+// Test Cerebras connection
+app.get('/api/ml/test', async (req, res) => {
+  try {
+    const result = await cerebrasService.testConnection()
+    res.json(result)
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    })
+  }
+})
+
+// Reset user preferences
+app.delete('/api/ml/profile/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params
+
+    const success = await preferenceService.resetProfile(userId)
+
+    if (success) {
+      res.json({
+        success: true,
+        message: `Profile reset for user ${userId}`
+      })
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to reset profile'
+      })
+    }
+  } catch (error) {
+    console.error('Profile reset error:', error)
+    res.status(500).json({
+      error: 'Failed to reset profile',
+      message: error.message
+    })
+  }
+})
 
 // Config endpoint to provide frontend with necessary configuration
 app.get('/api/config', (req, res) => {
@@ -98,11 +296,24 @@ app.get('/api/config', (req, res) => {
     features: {
       mockMode: true,
       gmailIntegration: false, // Will be true when server-side Gmail integration is added
-      aiClassification: false, // Will be true when AI features are added
+      aiClassification: true, // AI features are now available
+      mlLearning: true, // Machine learning preference system enabled
     },
     limits: {
       maxEmailsPerRequest: 50,
       maxFileSize: '10MB'
+    },
+    ml: {
+      cerebrasEnabled: !!process.env.CEREBRAS_API_KEY,
+      defaultUserId: 'demo-user', // For demo purposes
+      endpoints: {
+        extractTokens: '/api/ml/extract-tokens',
+        updatePreferences: '/api/ml/update-preferences',
+        getProfile: '/api/ml/profile/:userId',
+        scoreEmail: '/api/ml/score-email',
+        rankEmails: '/api/ml/rank-emails',
+        test: '/api/ml/test'
+      }
     }
   })
 })

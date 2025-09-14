@@ -919,6 +919,7 @@ body::before {
   padding: 1.5rem;
   border-bottom: 1px solid #f1f3f4;
   transition: background-color 0.2s;
+  position: relative;
 }
 
 .email-card:hover {
@@ -927,6 +928,21 @@ body::before {
 
 .email-card:last-child {
   border-bottom: none;
+}
+
+/* ML Score Badge */
+.ml-score-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  z-index: 10;
 }
 
 .email-header {
@@ -2675,6 +2691,35 @@ body::before {
 
 .stream-option.active .stream-description {
   color: var(--primary-ink);
+}
+
+/* ML Badge for AI-powered streams */
+.ml-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  margin-left: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  animation: pulseGlow 3s ease-in-out infinite;
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 1px 8px rgba(124, 58, 237, 0.3);
+    transform: scale(1.02);
+  }
 }
 
 /* Auth Loading Screen */

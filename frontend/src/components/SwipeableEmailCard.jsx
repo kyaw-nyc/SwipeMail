@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import EmailAnalysisDisplay from './EmailAnalysisDisplay'
 import IsolatedEmailContent from './IsolatedEmailContent'
 
-function SwipeableEmailCard({ email, onSwipeLeft, onSwipeRight, onAddToCalendar, eventInfo, isTopCard = false, isSwiping = false, stackIndex = 0, currentFolder }) {
+function SwipeableEmailCard({ email, onSwipeLeft, onSwipeRight, onAddToCalendar, eventInfo, isTopCard = false, isSwiping = false, stackIndex = 0, currentFolder, showMLScore = false }) {
   const [isDragging, setIsDragging] = useState(false)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const [rotation, setRotation] = useState(0)
@@ -278,6 +278,13 @@ function SwipeableEmailCard({ email, onSwipeLeft, onSwipeRight, onAddToCalendar,
       onTouchEnd={handleTouchEnd}
     >
       {getSwipeIndicator()}
+
+      {/* ML Score Badge */}
+      {showMLScore && email._preferenceScorePercent !== undefined && (
+        <div className="ml-score-badge">
+          {email._preferenceScorePercent}
+        </div>
+      )}
 
       {/* AI Analysis Badges */}
       <EmailAnalysisDisplay email={email} />

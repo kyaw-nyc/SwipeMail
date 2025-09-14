@@ -5,9 +5,17 @@ function StreamSelector({ currentStream, onStreamChange, isViewingStream }) {
     {
       id: 'unread',
       name: 'Unread Emails',
-      description: 'Only unread emails from inbox',
+      description: 'Recent unread emails (chronological)',
       icon: '📬',
       query: 'is:unread'
+    },
+    {
+      id: 'smart',
+      name: 'Smart Recommendations',
+      description: 'Emails ranked by your predicted interest',
+      icon: '🧠',
+      query: 'is:unread',
+      mlPowered: true
     }
   ]
 
@@ -31,7 +39,10 @@ function StreamSelector({ currentStream, onStreamChange, isViewingStream }) {
           >
             <div className="stream-icon">{stream.icon}</div>
             <div className="stream-info">
-              <div className="stream-name">{stream.name}</div>
+              <div className="stream-name">
+                {stream.name}
+                {stream.mlPowered && <span className="ml-badge">AI</span>}
+              </div>
               <div className="stream-description">{stream.description}</div>
             </div>
           </button>
