@@ -101,12 +101,18 @@ function SwipeableEmailCard({ email, onSwipeLeft, onSwipeRight, onAddToCalendar,
   const handleSwipeLeft = () => {
     if (isSwiping) return
     setSwipeDirection('left')
+    setDragOffset({ x: 0, y: 0 })
+    setRotation(0)
+    setIsDragging(false)
     onSwipeLeft(email)
   }
 
   const handleSwipeRight = () => {
     if (isSwiping) return
     setSwipeDirection('right')
+    setDragOffset({ x: 0, y: 0 })
+    setRotation(0)
+    setIsDragging(false)
     onSwipeRight(email)
   }
 
@@ -214,36 +220,34 @@ function SwipeableEmailCard({ email, onSwipeLeft, onSwipeRight, onAddToCalendar,
 
     if (isTopCard) classes.push('top-card')
     if (isSwiping && swipeDirection) classes.push(`swiping-${swipeDirection}`)
-    if (isDragging) classes.push('dragging')
+    if (isDragging && isTopCard) classes.push('dragging', 'manual-drag')
+    if (dragOffset.x !== 0 && dragOffset.y !== 0 && isTopCard && !isSwiping) classes.push('drag-feedback')
 
     return classes.join(' ')
   }
 
   const getCardStyle = () => {
     if (isSwiping && swipeDirection) {
-      // Let CSS handle the swipe animation
+      // Let CSS handle the swipe animation completely
+      return {}
+    }
+
+    if (isDragging && isTopCard) {
+      // Manual drag styling - only apply transform, CSS handles the rest
       return {
-        zIndex: isTopCard ? 10 : Math.max(1, 3 - stackIndex)
+        transform: `translateX(-50%) translate(${dragOffset.x}px, ${dragOffset.y}px) rotate(${rotation}deg)`
       }
     }
 
-    if (isDragging || (dragOffset.x !== 0 && isTopCard)) {
-      // Manual drag styling or scroll feedback
+    if (dragOffset.x !== 0 && dragOffset.y !== 0 && isTopCard && !isSwiping) {
+      // Drag feedback - only apply transform, CSS handles transitions
       return {
-        transform: `translateX(-50%) translate(${dragOffset.x}px, ${dragOffset.y}px) rotate(${rotation}deg)`,
-        transition: isDragging ? 'none' : 'transform 0.1s ease-out',
-        zIndex: isTopCard ? 10 : Math.max(1, 3 - stackIndex),
-        cursor: isDragging ? 'grabbing' : (isTopCard ? 'grab' : 'default')
+        transform: `translateX(-50%) translate(${dragOffset.x}px, ${dragOffset.y}px) rotate(${rotation}deg)`
       }
     }
 
-    // Default positioning
-    return {
-      transform: `translateX(-50%) translateY(${stackIndex * 4}px) scale(${1 - stackIndex * 0.02})`,
-      transition: 'all 0.3s ease-out',
-      zIndex: Math.max(1, 3 - stackIndex),
-      cursor: isTopCard ? 'grab' : 'default'
-    }
+    // Default positioning - let CSS handle everything
+    return {}
   }
 
   return (

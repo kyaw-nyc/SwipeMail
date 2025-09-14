@@ -86,7 +86,10 @@ body {
 body::before {
   content: "";
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   pointer-events: none;
   background: radial-gradient(220px 220px at var(--mx, 50vw) var(--my, 50vh), rgba(124, 58, 237, 0.16), transparent 60%);
   z-index: 0;
@@ -166,22 +169,99 @@ body::before {
   transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease, color 120ms ease, border-color 120ms ease;
   box-shadow: var(--shadow-sm);
 }
-.btn:hover { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(2,6,23,0.08); }
-.btn:active { transform: translateY(0); }
-.btn-primary { background: var(--primary-soft); color: var(--primary-ink); border-color: transparent; }
-.btn-lg { padding: 12px 18px; font-size: 1rem; border-radius: 12px; }
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(2, 6, 23, 0.08);
+}
+
+.btn:active {
+  transform: translateY(0);
+}
+
+.btn-primary {
+  background: var(--primary-soft);
+  color: var(--primary-ink);
+  border-color: transparent;
+}
+
+.btn-lg {
+  padding: 12px 18px;
+  font-size: 1rem;
+  border-radius: 12px;
+}
 
 /* Modal */
-.modal-overlay { position: fixed; inset: 0; background: rgba(2,6,23,0.35); display: flex; align-items: center; justify-content: center; z-index: 9999; }
-.modal { width: min(680px, 92vw); background: #fff; border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; }
-.modal-header { padding: 14px 16px; border-bottom: 1px solid var(--border); font-weight: 700; }
-.modal-body { padding: 14px 16px; display: grid; gap: 12px; }
-.modal-footer { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
-.modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.modal-field { display: grid; gap: 6px; }
-.modal-field span { font-size: 12px; color: var(--text-muted); }
-.modal input[type="text"], .modal input[type="datetime-local"], .modal textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font: inherit; }
-.modal textarea { resize: vertical; }
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(2, 6, 23, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.modal {
+  width: min(680px, 92vw);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.modal-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 700;
+}
+
+.modal-body {
+  padding: 14px 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.modal-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.modal-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.modal-field {
+  display: grid;
+  gap: 6px;
+}
+
+.modal-field span {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.modal input[type="text"],
+.modal input[type="datetime-local"],
+.modal textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font: inherit;
+}
+
+.modal textarea {
+  resize: vertical;
+}
 
 /* Top hero borrowed from SwipeMail package */
 .swipemail-hero {
@@ -548,6 +628,11 @@ body::before {
   align-items: center;
 }
 
+.auth-button.hidden,
+.hidden {
+  display: none !important;
+}
+
 .sign-in-container {
   display: flex;
   flex-direction: column;
@@ -678,7 +763,7 @@ body::before {
 .folder-item.active {
   background: var(--primary-soft);
   color: var(--primary-ink);
-  font-weight: 400;
+  font-weight: 500;
   border: 1px solid var(--primary);
 }
 
@@ -761,6 +846,7 @@ body::before {
   margin: 1rem;
   position: relative;
   z-index: 1;
+  transition: opacity 0.2s ease;
 }
 
 .loading {
@@ -1011,6 +1097,23 @@ body::before {
   transition: width 0.3s ease;
 }
 
+/* Loading progress bar styles */
+.loading-progress-container {
+  margin-top: 8px;
+  height: 6px;
+  background: #eef2ff;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.loading-progress-bar {
+  height: 6px;
+  background: linear-gradient(90deg, #8b5cf6, #6366f1);
+  transition: width 240ms ease;
+  border-radius: 999px;
+  width: 0%;
+}
+
 .remaining-count {
   font-size: 0.875rem;
   color: var(--text);
@@ -1053,17 +1156,17 @@ body::before {
   transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 
-.swipeable-email-card:nth-child(1) {
+.swipeable-email-card:nth-child(1):not(.swiping-left):not(.swiping-right):not(.dragging) {
   z-index: 3;
   transform: translateX(-50%) scale(1);
 }
 
-.swipeable-email-card:nth-child(2) {
+.swipeable-email-card:nth-child(2):not(.swiping-left):not(.swiping-right):not(.dragging) {
   z-index: 2;
   transform: translateX(-50%) scale(0.96) translateY(6px);
 }
 
-.swipeable-email-card:nth-child(3) {
+.swipeable-email-card:nth-child(3):not(.swiping-left):not(.swiping-right):not(.dragging) {
   z-index: 1;
   transform: translateX(-50%) scale(0.92) translateY(12px);
 }
@@ -1076,33 +1179,47 @@ body::before {
   cursor: grabbing;
 }
 
-/* Swipe animations */
+.top-card.dragging {
+  cursor: grabbing;
+  z-index: 10 !important;
+  transition: none !important;
+}
+
+/* Swipe animations - prevent style conflicts during animation */
 .swipeable-email-card.swiping-left {
   animation: swipeLeft 0.35s ease-out forwards;
+  transform-origin: center center !important;
 }
 
 .swipeable-email-card.swiping-right {
   animation: swipeRight 0.35s ease-out forwards;
+  transform-origin: center center !important;
+}
+
+.swipeable-email-card.swiping-left,
+.swipeable-email-card.swiping-right {
+  z-index: 999 !important;
+  pointer-events: none;
 }
 
 @keyframes swipeLeft {
   0% {
-    transform: translateX(-50%);
+    transform: translateX(-50%) translateY(0) rotate(0deg) scale(1);
     opacity: 1;
   }
   100% {
-    transform: translateX(-50%) translateX(-400px) translateY(-50px) rotate(-30deg);
+    transform: translateX(-50%) translateX(-400px) translateY(-50px) rotate(-30deg) scale(0.8);
     opacity: 0;
   }
 }
 
 @keyframes swipeRight {
   0% {
-    transform: translateX(-50%);
+    transform: translateX(-50%) translateY(0) rotate(0deg) scale(1);
     opacity: 1;
   }
   100% {
-    transform: translateX(-50%) translateX(400px) translateY(-50px) rotate(30deg);
+    transform: translateX(-50%) translateX(400px) translateY(-50px) rotate(30deg) scale(0.8);
     opacity: 0;
   }
 }
@@ -1118,16 +1235,24 @@ body::before {
   border-radius: 8px;
   z-index: 10;
   pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.swipeable-email-card.dragging .swipe-indicator {
+  opacity: 1;
 }
 
 .swipe-indicator.interested {
   background: rgba(52, 168, 83, 0.9);
   color: white;
+  border: 2px solid rgba(52, 168, 83, 1);
 }
 
 .swipe-indicator.not-interested {
   background: rgba(234, 67, 53, 0.9);
   color: white;
+  border: 2px solid rgba(234, 67, 53, 1);
 }
 
 .email-content {
@@ -1194,7 +1319,13 @@ body::before {
   min-width: 0;
 }
 
-.email-actions { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.email-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .add-to-calendar-btn {
   padding: 6px 10px;
   font-size: 0.75rem;
@@ -1202,8 +1333,14 @@ body::before {
   background: var(--primary-soft);
   color: var(--primary-ink);
   border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease;
 }
-.add-to-calendar-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(2,6,23,0.08); }
+
+.add-to-calendar-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(2, 6, 23, 0.08);
+}
 
 .email-subject {
   margin: 0;
@@ -1356,8 +1493,16 @@ body::before {
 }
 
 /* Force any wide content to fit while preserving layout */
-.email-body * {
+.email-body *:not(img):not(video):not(iframe) {
   max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.email-body img,
+.email-body video,
+.email-body iframe {
+  max-width: 100% !important;
+  height: auto !important;
   box-sizing: border-box !important;
 }
 
@@ -1385,7 +1530,7 @@ body::before {
 }
 
 /* Preserve email styling while ensuring safety and readability */
-.email-body *:not(pre):not(code):not(a):not(img):not(strong):not(b):not(em):not(i):not(h1):not(h2):not(h3):not(h4):not(h5):not(h6) {
+.email-body *:not(pre):not(code):not(a):not(img):not(strong):not(b):not(em):not(i):not(h1):not(h2):not(h3):not(h4):not(h5):not(h6):not(span) {
   color: var(--text) !important;
 }
 
@@ -1480,6 +1625,7 @@ body::before {
   cursor: not-allowed;
   pointer-events: none;
 }
+
 .gmail-button.disabled:hover {
   transform: none;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -1777,8 +1923,13 @@ body::before {
   backdrop-filter: blur(10px);
   border: 1px solid rgba(124, 58, 237, 0.3);
   z-index: 30;
-  animation: fadeInUp 0.3s ease-out;
+  opacity: 0;
+  animation: fadeInUp 0.3s ease-out forwards;
   box-shadow: 0 4px 12px rgba(124, 58, 237, 0.2);
+}
+
+.scroll-cooldown-indicator.show {
+  opacity: 1;
 }
 
 .scroll-cooldown-indicator span {
@@ -1789,11 +1940,11 @@ body::before {
 }
 
 @keyframes fadeInUp {
-  from {
+  0% {
     opacity: 0;
     transform: translateX(-50%) translateY(10px);
   }
-  to {
+  100% {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
   }
@@ -1825,12 +1976,23 @@ body::before {
   border-radius: 4px;
   border: 1px solid var(--border);
   cursor: help;
+  transition: all 0.2s ease;
+  transform: translateZ(0);
+}
+
+.analysis-badge:hover {
+  transform: translateY(-1px) translateZ(0);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .analysis-badge.urgent {
   background: rgba(255, 193, 7, 0.2);
   border-color: #ffc107;
   animation: pulse 2s infinite;
+}
+
+.analysis-badge.urgent:hover {
+  animation-play-state: paused;
 }
 
 @keyframes pulse {
@@ -1935,6 +2097,12 @@ body::before {
   z-index: 1000;
   box-shadow: var(--shadow);
   animation: fadeInOut 2s infinite;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.analysis-status.hide {
+  opacity: 0;
+  transform: translateX(100%);
 }
 
 @keyframes fadeInOut {
@@ -1977,6 +2145,7 @@ body::before {
   border-bottom: 1px solid rgba(209, 213, 219, 0.3);
   margin-bottom: 1rem;
   flex-shrink: 0;
+  transition: all 0.2s ease;
 }
 
 .stream-selector-header h4 {
@@ -2004,9 +2173,12 @@ body::before {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  transition: background-color 0.2s;
+  transition: all 0.2s ease;
   color: var(--text);
   font-weight: 400;
+  width: 100%;
+  font-family: inherit;
+  font-size: inherit;
 }
 
 .stream-option:hover {
@@ -2017,8 +2189,9 @@ body::before {
 .stream-option.active {
   background: var(--primary-soft);
   color: var(--primary-ink);
-  font-weight: 400;
+  font-weight: 500;
   border: 1px solid var(--primary);
+  transform: none;
 }
 
 .stream-icon {
@@ -2038,9 +2211,12 @@ body::before {
 }
 
 .stream-description {
-  font-size: 0.75rem;
+  font-size: 0.65rem;
   color: var(--text-muted);
-  line-height: 1.3;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .stream-option.active .stream-description {
@@ -2094,6 +2270,30 @@ body::before {
   align-items: center;
   justify-content: center;
   animation: fadeIn 0.3s ease-out;
+  backdrop-filter: blur(4px);
+}
+
+/* Add safe class for stream transitions */
+.stream-transitioning {
+  opacity: 0.7;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.stream-transitioning * {
+  pointer-events: none;
+}
+
+/* Card dragging states */
+.swipeable-email-card.manual-drag {
+  transition: none !important;
+  z-index: 10 !important;
+  cursor: grabbing !important;
+}
+
+.swipeable-email-card.drag-feedback {
+  transition: transform 0.1s ease-out !important;
+  z-index: 10 !important;
 }
 
 .stream-loading-content {

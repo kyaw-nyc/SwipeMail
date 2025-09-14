@@ -241,7 +241,7 @@ function AuthButtonImpl({ user, onLoginSuccess, onLogout, hideButton = false }, 
           <button onClick={handleSignOut} className="btn">Sign out</button>
         </div>
       ) : (
-        <div className="sign-in-container" style={hideButton ? { display: 'none' } : undefined}>
+        <div className={`sign-in-container ${hideButton ? 'hidden' : ''}`}>
           {authError ? (
             <div className="auth-error">
               <h3>⚠️ Configuration Required</h3>

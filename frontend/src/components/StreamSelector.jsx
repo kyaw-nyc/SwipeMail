@@ -3,7 +3,7 @@ import { useState } from 'react'
 function StreamSelector({ currentStream, onStreamChange }) {
   const streamOptions = [
     {
-      id: 'unread',
+      id: 'starred-duplicate',
       name: 'Unread Emails',
       description: 'Only unread emails from inbox',
       icon: '📬',

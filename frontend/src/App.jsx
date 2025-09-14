@@ -14,8 +14,8 @@ function App() {
   const [accessToken, setAccessToken] = useState(null)
   const [emails, setEmails] = useState([])
   const [streamEmails, setStreamEmails] = useState({
-    unread: [],
     starred: [],
+    'starred-duplicate': [],
     'inbox-all': []
   })
   const [loading, setLoading] = useState(false)
@@ -24,7 +24,7 @@ function App() {
   const [currentFolder, setCurrentFolder] = useState('STREAM')
   const [availableFolders, setAvailableFolders] = useState([])
   const [currentStream, setCurrentStream] = useState({
-    id: 'unread',
+    id: 'starred-duplicate',
     name: 'Unread Emails',
     description: 'Only unread emails from inbox',
     icon: '📬',
@@ -501,7 +501,8 @@ function App() {
       console.log('📋 Raw API response:', data)
 
       if (!data.messages || data.messages.length === 0) {
-        console.log(`❌ No messages found for query: "${query}"`)
+        console.log(`⚠️ No messages found for query: "${query}"`)
+        console.log(`📊 API response:`, data)
         return []
       }
 
@@ -781,22 +782,30 @@ function App() {
 
     try {
       const streams = [
-        { id: 'unread', query: 'is:unread newer_than:2d' },
+        { id: 'starred-duplicate', query: 'is:unread' },
+        { id: 'starred', query: 'is:starred' },
+        { id: 'inbox-all', labelId: 'INBOX' },
       ]
 
       // Fetch all streams in parallel
       const streamPromises = streams.map(async (stream) => {
-        if (stream.query) {
-          console.log(`Fetching stream ${stream.id} with query: ${stream.query}`)
-          const emails = await fetchEmailsWithQuery(stream.query)
-          console.log(`Stream ${stream.id} returned ${emails.length} emails`)
-          return { id: stream.id, emails }
-        } else if (stream.labelId) {
-          console.log(`Fetching stream ${stream.id} with labelId: ${stream.labelId}`)
-          const emails = await fetchEmailsWithLabelId(stream.labelId)
-          console.log(`Stream ${stream.id} returned ${emails.length} emails`)
-          return { id: stream.id, emails }
+        try {
+          if (stream.query) {
+            console.log(`🔍 Fetching stream ${stream.id} with query: "${stream.query}"`)
+            const emails = await fetchEmailsWithQuery(stream.query)
+            console.log(`✅ Stream ${stream.id} returned ${emails.length} emails`)
+            return { id: stream.id, emails }
+          } else if (stream.labelId) {
+            console.log(`🏷️ Fetching stream ${stream.id} with labelId: "${stream.labelId}"`)
+            const emails = await fetchEmailsWithLabelId(stream.labelId)
+            console.log(`✅ Stream ${stream.id} returned ${emails.length} emails`)
+            return { id: stream.id, emails }
+          }
+        } catch (error) {
+          console.error(`❌ Error loading stream ${stream.id}:`, error)
+          return { id: stream.id, emails: [] }
         }
+        return { id: stream.id, emails: [] }
       })
 
       const streamResults = await Promise.all(streamPromises)
@@ -814,7 +823,9 @@ function App() {
       setEmails(newStreamEmails[currentStream.id] || [])
 
       console.log('All streams loaded successfully:', {
-        unread: newStreamEmails.unread?.length || 0,
+        'unread (starred-duplicate)': newStreamEmails['starred-duplicate']?.length || 0,
+        starred: newStreamEmails.starred?.length || 0,
+        'inbox-all': newStreamEmails['inbox-all']?.length || 0,
       })
     } catch (error) {
       console.error('Error loading streams:', error)
@@ -1139,14 +1150,11 @@ function App() {
                   <p>Loading emails...</p>
                   <div className="loading-spinner"></div>
                   {loadTotal > 0 && (
-                    <div style={{ marginTop: 8, height: 6, background: '#eef2ff', borderRadius: 999, overflow: 'hidden' }}>
+                    <div className="loading-progress-container">
                       <div
+                        className="loading-progress-bar"
                         style={{
-                          height: 6,
-                          width: `${Math.max(0, Math.min(100, (loadProgress / Math.max(1, loadTotal)) * 100))}%`,
-                          background: 'linear-gradient(90deg,#8b5cf6,#6366f1)',
-                          transition: 'width 240ms ease',
-                          borderRadius: 999,
+                          width: `${Math.max(0, Math.min(100, (loadProgress / Math.max(1, loadTotal)) * 100))}%`
                         }}
                       />
                     </div>
@@ -1282,7 +1290,7 @@ function App() {
                     Sign in with Google
                   </button>
                   {/* Keep AuthButton mounted but hidden to manage GIS + token flow via ref */}
-                  <div style={{ display: 'none' }}>
+                  <div className="hidden">
                     <AuthButton
                       ref={authRef}
                       hideButton={true}
