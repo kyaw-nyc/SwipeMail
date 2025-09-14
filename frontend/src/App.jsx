@@ -3,6 +3,7 @@ import Cookies from 'js-cookie'
 import AuthButton from './components/AuthButton'
 import EmailStack from './components/EmailStack'
 import FolderBar from './components/FolderBar'
+import CustomFolderModal from './components/CustomFolderModal'
 import { useCerebrasAnalysis } from './hooks/useCerebrasAnalysis'
 import cerebrasApi from './services/cerebrasApi'
 import { createCalendarEvent } from './services/calendar'
@@ -60,9 +61,23 @@ function App() {
   }
   const [eventSubmitting, setEventSubmitting] = useState(false)
 
+  // Custom folder state
+  const [customFolders, setCustomFolders] = useState([])
+  const [customFolderModalOpen, setCustomFolderModalOpen] = useState(false)
+
   // Initialize Cerebras analysis hook
   const { analyzeEmail, isAnalyzing } = useCerebrasAnalysis()
   const [eventAnalysis, setEventAnalysis] = useState({}) // id -> { loading, result, error }
+
+  // Request cancellation for folder/stream switching
+  const currentRequestRef = useRef(null)
+
+  // Stream state preservation when switching to folders
+  const [previousStreamState, setPreviousStreamState] = useState({
+    streamId: null,
+    emails: [],
+    folder: null // which folder it was on when we saved the state
+  })
 
   // Cursor-follow glow like SwipeMail package
   useEffect(() => {
@@ -85,6 +100,18 @@ function App() {
 
   // Check for existing session on mount
   useEffect(() => {
+    // Load custom folders from localStorage
+    const storedFolders = localStorage.getItem('swipemail_custom_folders')
+    if (storedFolders) {
+      try {
+        const parsedFolders = JSON.parse(storedFolders)
+        setCustomFolders(parsedFolders)
+        console.log('Loaded custom folders:', parsedFolders)
+      } catch (e) {
+        console.error('Failed to load custom folders:', e)
+      }
+    }
+
     const checkExistingSession = async () => {
       const storedToken = Cookies.get('swipemail_token')
       const storedUser = Cookies.get('swipemail_user')
@@ -257,6 +284,37 @@ function App() {
     console.log('Session cleared from cookies')
   }
 
+  // Handle custom folder creation
+  const handleCreateCustomFolder = async (folderData) => {
+    try {
+      // Create the Gmail label
+      const labelName = `SwipeMail/${folderData.name}`
+      const labelId = await createLabelIfNotExists(labelName)
+
+      if (labelId) {
+        // Add to custom folders state
+        const newFolder = {
+          ...folderData,
+          labelId,
+          labelName
+        }
+        setCustomFolders(prev => [...prev, newFolder])
+
+        // Store in localStorage for persistence
+        const updatedFolders = [...customFolders, newFolder]
+        localStorage.setItem('swipemail_custom_folders', JSON.stringify(updatedFolders))
+
+        console.log(`✅ Created custom folder: ${labelName}`)
+
+        // Refresh folders list to show the new folder
+        fetchFolders()
+      }
+    } catch (error) {
+      console.error('Error creating custom folder:', error)
+      alert('Failed to create custom folder. Please try again.')
+    }
+  }
+
   // Add to Google Calendar via Cerebras event extraction
   const handleAddToCalendar = async (email) => {
     try {
@@ -405,6 +463,34 @@ function App() {
 
   const handleStreamChange = async (stream) => {
     console.log('Stream changed to:', stream.name)
+
+    // Check if we have saved state for this stream and can restore it
+    if (previousStreamState.streamId === stream.id && previousStreamState.emails.length > 0) {
+      console.log(`🔄 Restoring saved stream state instead of reloading: ${stream.id} with ${previousStreamState.emails.length} emails`)
+      setCurrentStream(stream)
+      setCurrentFolder('STREAM')
+      setEmails(previousStreamState.emails)
+      setAllFetchedEmails(previousStreamState.emails)
+
+      // Clear the saved state since we've restored it
+      setPreviousStreamState({
+        streamId: null,
+        emails: [],
+        folder: null
+      })
+      return // Don't reload, just restore
+    }
+
+    // Clear saved stream state if switching to a different stream
+    if (previousStreamState.streamId && previousStreamState.streamId !== stream.id) {
+      console.log(`🗑️ Clearing saved state for different stream (was: ${previousStreamState.streamId}, now: ${stream.id})`)
+      setPreviousStreamState({
+        streamId: null,
+        emails: [],
+        folder: null
+      })
+    }
+
     setCurrentStream(stream)
     setCurrentFolder('STREAM')
     // Load this stream individually with its timeframe
@@ -416,13 +502,33 @@ function App() {
           const master = masterUnreadEmails.length ? masterUnreadEmails : await loadMasterUnread()
           const next = filterEmailsByTimeRange(master, days)
           setStreamEmails((prev) => ({ ...prev, unread: next }))
-          setEmails(next)
-          setAllFetchedEmails(next)
+
+          // Preserve current emails if we're switching back to the same stream
+          // Only reset if the current emails are from a different source (folders)
+          const currentIsFromSameStream = currentFolder === 'STREAM' && currentStream?.id === stream.id
+          if (!currentIsFromSameStream) {
+            console.log('🔄 Loading fresh emails for stream switch')
+            setEmails(next)
+            setAllFetchedEmails(next)
+          } else {
+            console.log('📌 Preserving current swiped state for same stream')
+            // Update the backend data but keep current UI state
+            setAllFetchedEmails(next)
+          }
         } else if (stream.id === 'inbox-all') {
           const next = await fetchEmailsWithLabelId('INBOX', days)
           setStreamEmails((prev) => ({ ...prev, ['inbox-all']: next }))
-          setEmails(next)
-          setAllFetchedEmails(next)
+
+          // Same preservation logic for inbox-all stream
+          const currentIsFromSameStream = currentFolder === 'STREAM' && currentStream?.id === stream.id
+          if (!currentIsFromSameStream) {
+            console.log('🔄 Loading fresh emails for stream switch')
+            setEmails(next)
+            setAllFetchedEmails(next)
+          } else {
+            console.log('📌 Preserving current swiped state for same stream')
+            setAllFetchedEmails(next)
+          }
         }
       } catch (e) {
         console.error('Failed to switch stream', e)
@@ -634,6 +740,24 @@ function App() {
     if (!text) return text
 
     return text
+      // First decode HTML entities
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&ldquo;/g, '"')
+      .replace(/&rdquo;/g, '"')
+      .replace(/&lsquo;/g, "'")
+      .replace(/&rsquo;/g, "'")
+      .replace(/&mdash;/g, '—')
+      .replace(/&ndash;/g, '–')
+      .replace(/&hellip;/g, '...')
+      // Decode numeric HTML entities
+      .replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec))
+      .replace(/&#x([0-9a-f]+);/gi, (match, hex) => String.fromCharCode(parseInt(hex, 16)))
+
       // Fix common encoding issues
       .replace(/â€™/g, "'") // Smart apostrophe
       .replace(/â€œ/g, '"') // Smart quote left
@@ -791,19 +915,90 @@ function App() {
     }
   }
 
-  const fetchEmailsWithLabelId = async (labelId, daysOverride) => {
+  const fetchEmailsWithLabelId = async (labelId, daysOverride, abortSignal = null) => {
     try {
       if (!accessToken) {
         console.log('No access token available. User needs to sign in with Gmail permissions.')
         return []
       }
 
-      console.log(`🏷️ Fetching emails with labelId: "${labelId}"`)
-      const baseQuery = `label:${labelId}`
-      const queryWithTimeRange = buildQueryWithTimeRange(baseQuery, daysOverride)
-      const ids = await fetchAllMessageIdsByQuery(queryWithTimeRange, 2000)
-      if (!ids.length) return []
-      const result = await processEmailDetails(ids)
+      console.log(`🏷️ Fetching emails with labelId: "${labelId}" and daysOverride: ${daysOverride}`)
+
+      // Use Gmail API messages endpoint with labelIds parameter
+      const results = []
+      let pageToken = undefined
+      const maxResults = 2000
+
+      while (results.length < maxResults) {
+        const url = new URL('https://gmail.googleapis.com/gmail/v1/users/me/messages')
+        url.searchParams.set('labelIds', labelId)
+        url.searchParams.set('maxResults', String(Math.min(100, maxResults - results.length)))
+        if (pageToken) url.searchParams.set('pageToken', pageToken)
+
+        console.log(`📧 Gmail API URL: ${url.toString()}`)
+        const fetchOptions = {
+          headers: { 'Authorization': `Bearer ${accessToken}` }
+        }
+        if (abortSignal) {
+          fetchOptions.signal = abortSignal
+        }
+        const res = await fetch(url.toString(), fetchOptions)
+        if (!res.ok) throw new Error(`Gmail API error: ${res.status} ${res.statusText}`)
+        const data = await res.json()
+        if (Array.isArray(data.messages)) results.push(...data.messages)
+        pageToken = data.nextPageToken
+        if (!pageToken) break
+      }
+
+      if (!results.length) {
+        console.log(`No messages found for labelId: ${labelId}`)
+        return []
+      }
+
+      // Apply time range filtering on the results if needed
+      // For folders, daysOverride should be null to get ALL emails
+      const days = daysOverride
+      let filteredIds = results
+
+      if (days) {
+        // For time filtering, we need to get message details and filter by date
+        // This is less efficient but necessary for accurate time-based filtering
+        console.log(`Applying ${days}-day time filter to ${results.length} messages...`)
+        const cutoffDate = new Date()
+        cutoffDate.setDate(cutoffDate.getDate() - days)
+        cutoffDate.setHours(0, 0, 0, 0)
+
+        // Get basic message info to check dates
+        const timeFilteredIds = []
+        for (const msg of results) {
+          try {
+            const msgFetchOptions = {
+              headers: { 'Authorization': `Bearer ${accessToken}` }
+            }
+            if (abortSignal) {
+              msgFetchOptions.signal = abortSignal
+            }
+            const msgRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=minimal`, msgFetchOptions)
+            if (msgRes.ok) {
+              const msgData = await msgRes.json()
+              const messageDate = new Date(parseInt(msgData.internalDate))
+              if (messageDate >= cutoffDate) {
+                timeFilteredIds.push(msg)
+              }
+            }
+          } catch (e) {
+            console.warn(`Failed to check date for message ${msg.id}:`, e)
+            // Include in results if we can't check date
+            timeFilteredIds.push(msg)
+          }
+        }
+        filteredIds = timeFilteredIds
+        console.log(`Filtered to ${filteredIds.length} messages within ${days} days`)
+      }
+
+      if (!filteredIds.length) return []
+
+      const result = await processEmailDetails(filteredIds)
       console.log(`🎯 Processed ${result.length} emails for labelId "${labelId}"`)
       return result
     } catch (error) {
@@ -1225,6 +1420,44 @@ function App() {
 
   const analyzeAndSortEmail = async (email) => {
     try {
+      console.log('🧠 Analyzing email for sorting into folders...')
+
+      // First, check custom folders using Cerebras AI
+      const customFoldersToApply = []
+      if (customFolders && customFolders.length > 0) {
+        console.log(`🔍 Checking against ${customFolders.length} custom folders...`)
+
+        for (const folder of customFolders) {
+          try {
+            const match = await cerebrasApi.matchEmailToFolder(email, folder)
+            if (match && match.matches && match.confidence > 0.7) {
+              customFoldersToApply.push({
+                folder,
+                confidence: match.confidence,
+                reason: match.reason
+              })
+              console.log(`✅ Email matches custom folder "${folder.name}" (confidence: ${match.confidence})`)
+            }
+          } catch (error) {
+            console.warn(`Failed to check custom folder "${folder.name}":`, error)
+          }
+        }
+      }
+
+      // Apply labels for matching custom folders
+      for (const match of customFoldersToApply) {
+        try {
+          const labelId = await createLabelIfNotExists(match.folder.labelName)
+          if (labelId) {
+            await applyLabel(email.id, labelId)
+            console.log(`✅ Sorted email to custom folder: ${match.folder.name} (${match.reason})`)
+          }
+        } catch (error) {
+          console.error(`Failed to apply custom folder label "${match.folder.name}":`, error)
+        }
+      }
+
+      // Then, do the basic Individual/Organization classification
       console.log('🧠 Analyzing email to determine if from individual or organization...')
       const analysis = await analyzeEmail(email)
 
@@ -1250,6 +1483,11 @@ function App() {
           console.log('✅ Sorted email to folder: SwipeMail/Organization (fallback)')
         }
       }
+
+      // Summary log
+      const totalFolders = customFoldersToApply.length + 1 // +1 for Individual/Organization
+      console.log(`📁 Email sorted into ${totalFolders} folders total`)
+
     } catch (error) {
       console.error('Error analyzing and sorting email:', error)
       // Fallback to organization folder on error
@@ -1280,6 +1518,16 @@ function App() {
   }
 
   const fetchEmails = async (folderId, daysOverride) => {
+    // Cancel any existing request
+    if (currentRequestRef.current) {
+      console.log('🚫 Cancelling previous fetch request')
+      currentRequestRef.current.abort()
+    }
+
+    // Create new abort controller for this request
+    const abortController = new AbortController()
+    currentRequestRef.current = abortController
+
     setLoading(true)
     try {
       if (!accessToken) {
@@ -1299,17 +1547,10 @@ function App() {
         return
       }
 
-      // For SwipeMail AI folders (custom labels) - fetch via paginated search honoring time range
-      const baseQuery = `label:${folderId}`
-      const queryWithTimeRange = buildQueryWithTimeRange(baseQuery, daysOverride)
-      const ids = await fetchAllMessageIdsByQuery(queryWithTimeRange, 2000)
-      if (!ids.length) {
-        console.log('No messages found for folder:', folderId)
-        setEmails([])
-        return
-      }
-      console.log(`Found ${ids.length} messages, processing details...`)
-      const formattedEmails = await processEmailDetails(ids)
+      // For SwipeMail AI folders (custom labels) - get ALL emails (no time filtering for folders)
+      console.log(`📁 Fetching folder ${folderId} - calling fetchEmailsWithLabelId with null time filter`)
+      const formattedEmails = await fetchEmailsWithLabelId(folderId, null, abortController.signal)
+      console.log(`📁 Loaded ${formattedEmails.length} folder emails without time filtering (folders show all emails)`)
 
       console.log(`Successfully loaded ${formattedEmails.length} emails`)
       setEmails(formattedEmails)
@@ -1322,17 +1563,46 @@ function App() {
       }
 
     } catch (error) {
+      if (error.name === 'AbortError') {
+        console.log('📦 Fetch request was cancelled')
+        return // Don't update state or show error for cancelled requests
+      }
       console.error('Error fetching emails:', error)
     } finally {
+      // Clear the current request reference
+      if (currentRequestRef.current === abortController) {
+        currentRequestRef.current = null
+      }
       setLoading(false)
     }
   }
 
   const handleFolderChange = (folderId, daysOverride) => {
+    console.log(`🔄 handleFolderChange called with folderId: ${folderId}`)
+    console.log(`📂 Available folders:`, availableFolders)
+    console.log(`🏷️ Custom folders:`, customFolders)
+
+    // Save current stream state when navigating away from stream
+    if (currentFolder === 'STREAM' && folderId !== 'STREAM' && emails.length > 0) {
+      console.log(`💾 Saving stream state: ${currentStream?.id} with ${emails.length} emails`)
+      setPreviousStreamState({
+        streamId: currentStream?.id,
+        emails: [...emails], // Create a copy of current emails
+        folder: 'STREAM'
+      })
+      // Clear current stream when navigating to a folder
+      setCurrentStream(null)
+    }
+
+    // Note: Stream state restoration is now handled by handleStreamChange
+
     setCurrentFolder(folderId)
     setEmails([])
 
-    fetchEmails(folderId, daysOverride)
+    // For folders, ignore time range - always fetch all emails
+    // For streams, use the time range override
+    const timeRangeToUse = folderId === 'STREAM' ? daysOverride : null
+    fetchEmails(folderId, timeRangeToUse)
   }
 
   useEffect(() => {
@@ -1430,11 +1700,20 @@ function App() {
               onStreamChange={handleStreamChange}
               currentTimeRange={getCurrentTimeRange()}
               onTimeRangeChange={handleTimeRangeChange}
+              onAddFolder={() => setCustomFolderModalOpen(true)}
             />
             <div className="email-section">
               {loading && streamsLoaded ? (
                 <div className="loading">
-                  <p>Loading emails...</p>
+                  <p>{
+                    currentFolder === 'STREAM'
+                      ? `Loading ${currentStream?.name || 'stream'} emails...`
+                      : (() => {
+                          const folder = availableFolders.find(f => f.id === currentFolder)
+                          const folderName = folder ? folder.name.replace('SwipeMail/', '') : 'folder'
+                          return `📁 Loading ${folderName} emails...`
+                        })()
+                  }</p>
                   <div className="loading-spinner"></div>
                   {loadTotal > 0 && (
                     <div className="loading-progress-container">
@@ -1607,6 +1886,12 @@ function App() {
         onClose={() => setEventModalOpen(false)}
         onConfirm={handleConfirmCreateEvent}
         submitting={eventSubmitting}
+      />
+      <CustomFolderModal
+        isOpen={customFolderModalOpen}
+        onClose={() => setCustomFolderModalOpen(false)}
+        onCreateFolder={handleCreateCustomFolder}
+        existingFolders={availableFolders}
       />
     </div>
   )

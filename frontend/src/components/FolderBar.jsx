@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react'
 import StreamSelector from './StreamSelector'
 import TimeRangeSelector from './TimeRangeSelector'
 
-function FolderBar({ folders = [], currentFolder, onFolderChange, currentStream, onStreamChange, currentTimeRange, onTimeRangeChange }) {
+function FolderBar({ folders = [], currentFolder, onFolderChange, currentStream, onStreamChange, currentTimeRange, onTimeRangeChange, onAddFolder }) {
+  // Check if we're currently viewing a stream (not a custom folder)
+  const isViewingStream = currentFolder === 'STREAM'
   // Map Gmail system labels to user-friendly names
   const getFolderDisplayName = (folder) => {
     const nameMap = {
@@ -23,6 +25,11 @@ function FolderBar({ folders = [], currentFolder, onFolderChange, currentStream,
   }
 
   const handleFolderClick = (folderId) => {
+    // Don't navigate if clicking on the currently active folder
+    if (currentFolder === folderId) {
+      console.log('Already on this folder, ignoring click')
+      return
+    }
     onFolderChange(folderId)
   }
 
@@ -33,8 +40,8 @@ function FolderBar({ folders = [], currentFolder, onFolderChange, currentStream,
 
   return (
     <div className="folder-bar">
-      {/* Time Range Selector */}
-      {onTimeRangeChange && (
+      {/* Time Range Selector - only show for streams, not folders */}
+      {onTimeRangeChange && isViewingStream && (
         <TimeRangeSelector
           currentRange={currentTimeRange}
           onRangeChange={onTimeRangeChange}
@@ -46,6 +53,7 @@ function FolderBar({ folders = [], currentFolder, onFolderChange, currentStream,
         <StreamSelector
           currentStream={currentStream}
           onStreamChange={onStreamChange}
+          isViewingStream={isViewingStream}
         />
       )}
 
@@ -71,12 +79,21 @@ function FolderBar({ folders = [], currentFolder, onFolderChange, currentStream,
                 )}
               </button>
             ))}
+
+            {/* Add Custom Folder Button */}
+            {onAddFolder && (
+              <button
+                onClick={onAddFolder}
+                className="add-folder-btn"
+                title="Create custom folder"
+              >
+                <span className="add-folder-icon">➕</span>
+                <span>Add Custom Folder</span>
+              </button>
+            )}
           </>
         )}
       </nav>
-
-      {/* TODO: Add custom labels/tags section */}
-      {/* TODO: Add AI-generated smart folders (e.g., "Needs Response", "Bills", etc.) */}
 
       <div className="folder-bar-footer">
         {/* TODO: Add settings/preferences button */}

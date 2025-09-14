@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-function StreamSelector({ currentStream, onStreamChange }) {
+function StreamSelector({ currentStream, onStreamChange, isViewingStream }) {
   const streamOptions = [
     {
       id: 'unread',
@@ -11,6 +11,12 @@ function StreamSelector({ currentStream, onStreamChange }) {
     }
   ]
 
+  const handleStreamClick = (stream) => {
+    // Always allow navigation - let the parent component handle state
+    console.log('Stream clicked:', stream.name)
+    onStreamChange(stream)
+  }
+
   return (
     <div className="stream-selector">
       <div className="stream-selector-header">
@@ -20,8 +26,8 @@ function StreamSelector({ currentStream, onStreamChange }) {
         {streamOptions.map((stream) => (
           <button
             key={stream.id}
-            onClick={() => onStreamChange(stream)}
-            className={`stream-option ${currentStream?.id === stream.id ? 'active' : ''}`}
+            onClick={() => handleStreamClick(stream)}
+            className={`stream-option ${isViewingStream && currentStream?.id === stream.id ? 'active' : ''} ${!isViewingStream ? 'inactive' : ''}`}
           >
             <div className="stream-icon">{stream.icon}</div>
             <div className="stream-info">

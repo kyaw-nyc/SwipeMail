@@ -168,6 +168,116 @@ Suggest 5-8 categories that would best organize these emails. Return as JSON arr
   }
 
   /**
+   * Check if an email matches a custom folder
+   * @param {Object} email - Email object with subject, from, body/snippet
+   * @param {Object} folder - Folder object with name and description
+   * @returns {Promise<Object>} Match result with confidence score
+   */
+  async matchEmailToFolder(email, folder) {
+    const prompt = `Analyze if this email belongs in the "${folder.name}" folder.
+
+IMPORTANT: Emails can belong to multiple folders simultaneously. An email about "work travel" could belong in both "Work" and "Travel" folders. Consider if this email fits the specific folder being evaluated, regardless of whether it might also fit other folders.
+
+Folder Description: ${folder.description}
+
+Email Details:
+From: ${email.from}
+Subject: ${email.subject}
+Content: ${email.body || email.snippet || ''}
+
+Based on the folder's purpose and the email content, determine if this email belongs in this specific folder. Remember that emails can have multiple relevant categories.
+
+Return ONLY a JSON object with these keys:
+- matches: boolean (true if email belongs in folder, false otherwise)
+- confidence: number (0-1, how confident you are)
+- reason: string (brief explanation why it matches or doesn't match)
+
+Example responses:
+{"matches": true, "confidence": 0.95, "reason": "Work-related email from colleague about project deadline"}
+{"matches": false, "confidence": 0.8, "reason": "Personal email, not related to work topics"}
+{"matches": true, "confidence": 0.85, "reason": "Travel booking confirmation - fits travel folder even though it's also work-related"}`
+
+    const data = {
+      model: this.model,
+      messages: [
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      max_tokens: 200,
+      temperature: 0.2
+    }
+
+    try {
+      const response = await this.makeRequest('/chat/completions', data)
+      const resultText = response.choices[0].message.content
+
+      // Helper function to parse JSON from various formats
+      const tryParse = (text) => {
+        try { return JSON.parse(text) } catch {}
+        // Try extracting from markdown code blocks
+        const block = text.match(/```(?:json)?\\n([\\s\\S]*?)\\n```/i)
+        if (block?.[1]) { try { return JSON.parse(block[1]) } catch {} }
+        // Try finding JSON object boundaries
+        const s = text.indexOf('{'), e = text.lastIndexOf('}')
+        if (s !== -1 && e !== -1 && e > s) { try { return JSON.parse(text.slice(s, e + 1)) } catch {} }
+        return null
+      }
+
+      const parsed = tryParse(resultText)
+      if (!parsed || typeof parsed.matches !== 'boolean') {
+        throw new Error('Failed to parse folder matching response')
+      }
+      return parsed
+    } catch (error) {
+      console.error('Failed to match email to folder:', error)
+      return {
+        matches: false,
+        confidence: 0,
+        reason: 'Analysis failed'
+      }
+    }
+  }
+
+  /**
+   * Find the best matching custom folder for an email
+   * @param {Object} email - Email object
+   * @param {Array} customFolders - Array of custom folder objects
+   * @returns {Promise<Object|null>} Best matching folder or null
+   */
+  async findBestFolder(email, customFolders) {
+    if (!customFolders || customFolders.length === 0) {
+      return null
+    }
+
+    const matches = []
+
+    // Check each folder
+    for (const folder of customFolders) {
+      try {
+        const result = await this.matchEmailToFolder(email, folder)
+        if (result.matches && result.confidence > 0.7) {
+          matches.push({
+            folder,
+            ...result
+          })
+        }
+      } catch (error) {
+        console.error(`Failed to check folder ${folder.name}:`, error)
+      }
+    }
+
+    // Return the best match (highest confidence)
+    if (matches.length > 0) {
+      matches.sort((a, b) => b.confidence - a.confidence)
+      return matches[0]
+    }
+
+    return null
+  }
+
+  /**
    * Extract event details from an email using Cerebras
    * Returns JSON: { has_event, event_title, start_time, end_time, timezone, location, confidence, brief_reason }
    */

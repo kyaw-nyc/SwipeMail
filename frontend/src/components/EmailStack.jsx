@@ -151,24 +151,6 @@ function EmailStack({ emails, currentFolder, onMarkRead, onApplyLabel, onAnalyze
         ))}
       </div>
 
-      <div className="stack-instructions">
-        {currentFolder === 'STREAM' ? (
-          <>
-            <p>Swipe right (→) for interested • Swipe left (←) for not interested</p>
-            <p>Or use arrow keys</p>
-          </>
-        ) : typeof currentFolder === 'string' && currentFolder.includes('SwipeMail/') ? (
-          <>
-            <p>Swipe right (→) to keep • Swipe left (←) to flag as incorrectly sorted</p>
-            <p>Or use arrow keys</p>
-          </>
-        ) : (
-          <>
-            <p>Swipe right (→) to remove • Swipe left (←) to archive</p>
-            <p>Or use arrow keys</p>
-          </>
-        )}
-      </div>
     </div>
   )
 }
