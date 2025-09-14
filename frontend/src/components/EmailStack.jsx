@@ -6,6 +6,8 @@ function EmailStack({ emails, currentFolder, onMarkRead, onApplyLabel, onAnalyze
   const [processedEmails, setProcessedEmails] = useState([])
   const [swipingCards, setSwipingCards] = useState(new Set())
 
+  const isStream = currentFolder === 'STREAM'
+
   useEffect(() => {
     setCurrentIndex(0)
     setProcessedEmails([])
@@ -18,67 +20,95 @@ function EmailStack({ emails, currentFolder, onMarkRead, onApplyLabel, onAnalyze
     }
   }, [currentIndex, emails.length, onRemainingCountChange])
 
-  const handleSwipe = (email, direction) => {
+  const handleSwipe = (email, direction, isButtonClick = false) => {
     // Prevent multiple swipes on the same card
     if (swipingCards.has(email.id)) return
-
-    const isStream = currentFolder === 'STREAM'
-    const isSwipeMailFolder = typeof currentFolder === 'string' && currentFolder.includes('SwipeMail/')
-
-    console.log(`${direction === 'left' ? 'Not interested (marking as read)' : 'Interested (marking as read + sorting)'} in email:`, email.subject)
 
     // Mark this card as swiping
     setSwipingCards(prev => new Set([...prev, email.id]))
 
-    // Process email actions based on folder context
-    if (direction === 'left') {
-      if (isSwipeMailFolder) {
-        // In SwipeMail folders, left swipe flags as incorrectly sorted
-        onFlagIncorrect && onFlagIncorrect(email)
-        setProcessedEmails(prev => [...prev, { ...email, action: 'flagged_incorrect' }])
-      } else {
+    if (isStream) {
+      // Stream behavior - original functionality (one-way removal)
+      console.log(`${direction === 'left' ? 'Not interested (marking as read)' : 'Interested (marking as read + sorting)'} in email:`, email.subject)
+
+      if (direction === 'left') {
         // In stream view, left swipe marks as read
         onMarkRead(email.id)
         setProcessedEmails(prev => [...prev, { ...email, action: 'not_interested' }])
-      }
-    } else {
-      // Right swipe - always mark as read first
-      onMarkRead(email.id)
-
-      if (isStream) {
-        // In stream view, right swipe analyzes and sorts
+      } else {
+        // Right swipe - mark as read and analyze/sort
+        onMarkRead(email.id)
         if (onAnalyzeAndSort) {
           onAnalyzeAndSort(email)
         } else {
           onApplyLabel(email.id, 'STARRED')
         }
         setProcessedEmails(prev => [...prev, { ...email, action: 'interested' }])
-      } else {
-        // In other folders, right swipe just removes from current view
-        setProcessedEmails(prev => [...prev, { ...email, action: 'removed' }])
       }
-    }
 
-    // Update stack after animation completes
-    setTimeout(() => {
-      setCurrentIndex(prev => prev + 1)
+      // Stream: Remove card after animation (one-way)
+      setTimeout(() => {
+        setCurrentIndex(prev => prev + 1)
+        setSwipingCards(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(email.id)
+          return newSet
+        })
+      }, 350)
+    } else {
+      // Folder behavior - bidirectional navigation (slideshow mode)
+      // All gestures use normal direction now (scroll inversion is handled in SwipeableEmailCard)
+      const actualDirection = direction
+
+      console.log(`Navigating ${actualDirection === 'left' ? 'previous' : 'next'} email in folder`)
+
+      // Clear swiping state immediately for folders since there's no animation
       setSwipingCards(prev => {
         const newSet = new Set(prev)
         newSet.delete(email.id)
         return newSet
       })
-    }, 350)
+
+      if (actualDirection === 'left') {
+        // Previous email (backward)
+        if (currentIndex > 0) {
+          setCurrentIndex(prev => prev - 1)
+          setProcessedEmails(prev => [...prev, { ...email, action: 'navigated_previous' }])
+        } else {
+          console.log('Already at first email')
+        }
+      } else {
+        // Next email (forward)
+        if (currentIndex < emails.length - 1) {
+          setCurrentIndex(prev => prev + 1)
+          setProcessedEmails(prev => [...prev, { ...email, action: 'navigated_next' }])
+        } else {
+          console.log('Already at last email')
+        }
+      }
+    }
   }
 
-  const handleSwipeLeft = (email) => handleSwipe(email, 'left')
-  const handleSwipeRight = (email) => handleSwipe(email, 'right')
+  const handleSwipeLeft = (email, isButtonClick = false) => handleSwipe(email, 'left', isButtonClick)
+  const handleSwipeRight = (email, isButtonClick = false) => handleSwipe(email, 'right', isButtonClick)
 
   const getVisibleEmails = () => {
-    return emails.slice(currentIndex, currentIndex + 3)
+    if (isStream) {
+      // Stream: show stack of 3 cards (current + next 2)
+      return emails.slice(currentIndex, currentIndex + 3)
+    } else {
+      // Folder: show only current email (slideshow mode)
+      return emails.slice(currentIndex, currentIndex + 1)
+    }
   }
 
   const getRemainingCount = () => {
-    return Math.max(0, emails.length - currentIndex)
+    if (isStream) {
+      return Math.max(0, emails.length - currentIndex)
+    } else {
+      // For folders, return current position
+      return currentIndex + 1
+    }
   }
 
   const resetStack = () => {
@@ -98,28 +128,39 @@ function EmailStack({ emails, currentFolder, onMarkRead, onApplyLabel, onAnalyze
     )
   }
 
-  if (currentIndex >= emails.length) {
+  if ((isStream && currentIndex >= emails.length) || (!isStream && emails.length === 0)) {
     return (
       <div className="email-stack-complete">
         <div className="complete-state">
           <div className="complete-icon">🎉</div>
-          <h3>All done!</h3>
-          <p>You've reviewed all {emails.length} emails.</p>
+          <h3>{isStream ? 'All done!' : 'End of slideshow!'}</h3>
+          <p>{isStream ? `You've reviewed all ${emails.length} emails.` : `You've viewed all ${emails.length} emails.`}</p>
 
           <div className="summary">
             <div className="summary-stats">
-              <div className="stat">
-                <span className="stat-number">
-                  {processedEmails.filter(e => e.action === 'interested').length}
-                </span>
-                <span className="stat-label">Interested</span>
-              </div>
-              <div className="stat">
-                <span className="stat-number">
-                  {processedEmails.filter(e => e.action === 'not_interested').length}
-                </span>
-                <span className="stat-label">Not Interested</span>
-              </div>
+              {currentFolder === 'STREAM' ? (
+                <>
+                  <div className="stat">
+                    <span className="stat-number">
+                      {processedEmails.filter(e => e.action === 'interested').length}
+                    </span>
+                    <span className="stat-label">Interested</span>
+                  </div>
+                  <div className="stat">
+                    <span className="stat-number">
+                      {processedEmails.filter(e => e.action === 'not_interested').length}
+                    </span>
+                    <span className="stat-label">Not Interested</span>
+                  </div>
+                </>
+              ) : (
+                <div className="stat">
+                  <span className="stat-number">
+                    {processedEmails.length}
+                  </span>
+                  <span className="stat-label">Emails Viewed</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -147,6 +188,7 @@ function EmailStack({ emails, currentFolder, onMarkRead, onApplyLabel, onAnalyze
             isTopCard={index === 0}
             isSwiping={swipingCards.has(email.id)}
             stackIndex={index}
+            currentFolder={currentFolder}
           />
         ))}
       </div>

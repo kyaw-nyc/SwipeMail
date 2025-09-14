@@ -1858,6 +1858,27 @@ body::before {
   box-shadow: 0 6px 20px rgba(34, 197, 94, 0.3);
 }
 
+/* Navigation button styles (neutral for folders) */
+.nav-button {
+  background: var(--bg-subtle);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.nav-button .gmail-button-text {
+  color: var(--text);
+}
+
+.nav-button .gmail-button-icon {
+  color: var(--text-muted);
+}
+
+.nav-button:hover {
+  background: var(--bg-elev);
+  border: 1px solid var(--text-muted);
+  transform: translateY(-1px);
+}
+
 .swipe-hint span {
   font-size: 1.5rem;
   color: var(--text-muted);

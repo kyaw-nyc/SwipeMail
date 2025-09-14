@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import EmailAnalysisDisplay from './EmailAnalysisDisplay'
 import IsolatedEmailContent from './IsolatedEmailContent'
 
-function SwipeableEmailCard({ email, onSwipeLeft, onSwipeRight, onAddToCalendar, eventInfo, isTopCard = false, isSwiping = false, stackIndex = 0 }) {
+function SwipeableEmailCard({ email, onSwipeLeft, onSwipeRight, onAddToCalendar, eventInfo, isTopCard = false, isSwiping = false, stackIndex = 0, currentFolder }) {
   const [isDragging, setIsDragging] = useState(false)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const [rotation, setRotation] = useState(0)
@@ -65,10 +65,20 @@ function SwipeableEmailCard({ email, onSwipeLeft, onSwipeRight, onAddToCalendar,
           setScrollLocked(true)
 
           // Perform the swipe based on accumulated scroll direction
-          if (scrollDirection.current === 'left') {
-            handleSwipeLeft()
+          // For folders: invert scroll direction to feel natural (scroll left = go forward)
+          if (currentFolder !== 'STREAM') {
+            if (scrollDirection.current === 'left') {
+              handleSwipeRight() // Scroll left = go forward (next)
+            } else {
+              handleSwipeLeft() // Scroll right = go back (previous)
+            }
           } else {
-            handleSwipeRight()
+            // Stream: use normal direction
+            if (scrollDirection.current === 'left') {
+              handleSwipeLeft()
+            } else {
+              handleSwipeRight()
+            }
           }
 
           // Reset direction and set cooldown
@@ -99,22 +109,22 @@ function SwipeableEmailCard({ email, onSwipeLeft, onSwipeRight, onAddToCalendar,
     }
   }, [isTopCard, isSwiping])
 
-  const handleSwipeLeft = () => {
+  const handleSwipeLeft = (isButtonClick = false) => {
     if (isSwiping) return
     setSwipeDirection('left')
     setDragOffset({ x: 0, y: 0 })
     setRotation(0)
     setIsDragging(false)
-    onSwipeLeft(email)
+    onSwipeLeft(email, isButtonClick)
   }
 
-  const handleSwipeRight = () => {
+  const handleSwipeRight = (isButtonClick = false) => {
     if (isSwiping) return
     setSwipeDirection('right')
     setDragOffset({ x: 0, y: 0 })
     setRotation(0)
     setIsDragging(false)
-    onSwipeRight(email)
+    onSwipeRight(email, isButtonClick)
   }
 
   const handleMouseDown = (e) => {
@@ -206,6 +216,9 @@ function SwipeableEmailCard({ email, onSwipeLeft, onSwipeRight, onAddToCalendar,
   }
 
   const getSwipeIndicator = () => {
+    // Only show indicators for stream mode, not folders
+    if (currentFolder !== 'STREAM') return null
+
     // Show indicator if dragging or scrolling with significant offset
     if (Math.abs(dragOffset.x) < 30) return null
 
@@ -298,15 +311,17 @@ function SwipeableEmailCard({ email, onSwipeLeft, onSwipeRight, onAddToCalendar,
         <>
           <div className="swipe-hints">
             <button
-              className="gmail-button swipe-button left"
+              className={`gmail-button ${currentFolder === 'STREAM' ? 'swipe-button left' : 'nav-button'}`}
               onClick={(e) => {
                 e.stopPropagation()
-                handleSwipeLeft()
+                handleSwipeLeft(true)
               }}
             >
               <div className="gmail-button-content">
                 <div className="gmail-button-icon">←</div>
-                <div className="gmail-button-text">Not Interested</div>
+                <div className="gmail-button-text">
+                  {currentFolder === 'STREAM' ? "Not Interested" : "Previous"}
+                </div>
               </div>
             </button>
             <a
@@ -343,15 +358,17 @@ function SwipeableEmailCard({ email, onSwipeLeft, onSwipeRight, onAddToCalendar,
               </div>
             </button>
             <button
-              className="gmail-button swipe-button right"
+              className={`gmail-button ${currentFolder === 'STREAM' ? 'swipe-button right' : 'nav-button'}`}
               onClick={(e) => {
                 e.stopPropagation()
-                handleSwipeRight()
+                handleSwipeRight(true)
               }}
             >
               <div className="gmail-button-content">
                 <div className="gmail-button-icon">→</div>
-                <div className="gmail-button-text">Interested</div>
+                <div className="gmail-button-text">
+                  {currentFolder === 'STREAM' ? "Interested" : "Next"}
+                </div>
               </div>
             </button>
           </div>

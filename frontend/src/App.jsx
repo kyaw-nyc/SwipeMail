@@ -1528,6 +1528,7 @@ function App() {
     const abortController = new AbortController()
     currentRequestRef.current = abortController
 
+    console.log('🔄 Setting loading to TRUE for folder:', folderId)
     setLoading(true)
     try {
       if (!accessToken) {
@@ -1573,6 +1574,7 @@ function App() {
       if (currentRequestRef.current === abortController) {
         currentRequestRef.current = null
       }
+      console.log('✅ Setting loading to FALSE for folder:', folderId)
       setLoading(false)
     }
   }
@@ -1703,11 +1705,11 @@ function App() {
               onAddFolder={() => setCustomFolderModalOpen(true)}
             />
             <div className="email-section">
-              {loading && streamsLoaded ? (
+              {loading ? (
                 <div className="loading">
                   <p>{
                     currentFolder === 'STREAM'
-                      ? `Loading ${currentStream?.name || 'stream'} emails...`
+                      ? `Loading ${currentStream?.name || 'stream'}...`
                       : (() => {
                           const folder = availableFolders.find(f => f.id === currentFolder)
                           const folderName = folder ? folder.name.replace('SwipeMail/', '') : 'folder'
@@ -1735,7 +1737,10 @@ function App() {
                   )}
                   <div className="email-section-header">
                     <div className="remaining-count">
-                      {remainingCount} remaining
+                      {currentFolder === 'STREAM'
+                        ? `${remainingCount} remaining`
+                        : `${remainingCount} of ${emails.length}`
+                      }
                       {atMaximumEmails && (
                         <span className="maximum-indicator">
                           📊 Maximum (10,000 emails)
