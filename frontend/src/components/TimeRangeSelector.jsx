@@ -43,7 +43,7 @@ function TimeRangeSelector({ currentRange, onRangeChange }) {
       id: '3m',
       label: 'Last 3 months',
       shortLabel: '3m',
-      icon: '📅',
+      icon: '🗂️',
       days: 90
     },
     {
@@ -61,10 +61,12 @@ function TimeRangeSelector({ currentRange, onRangeChange }) {
   }
 
   return (
-    <div className="time-range-dropdown">
+    <div className={`time-range-dropdown ${isOpen ? 'open' : ''}`}>
       <button
         className="time-range-trigger"
         onClick={() => setIsOpen(!isOpen)}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
       >
         <span className="time-range-current">
           <span className="time-range-icon">{currentRange?.icon || '🕐'}</span>
@@ -74,12 +76,14 @@ function TimeRangeSelector({ currentRange, onRangeChange }) {
       </button>
 
       {isOpen && (
-        <div className="time-range-menu">
+        <div className="time-range-menu" role="listbox">
           {timeRangeOptions.map((option) => (
             <button
               key={option.id}
               onClick={() => handleOptionSelect(option)}
               className={`time-range-option ${currentRange?.id === option.id ? 'active' : ''}`}
+              role="option"
+              aria-selected={currentRange?.id === option.id}
             >
               <span className="time-range-icon">{option.icon}</span>
               <span className="time-range-label">{option.label}</span>

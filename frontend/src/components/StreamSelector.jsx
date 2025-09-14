@@ -8,20 +8,6 @@ function StreamSelector({ currentStream, onStreamChange }) {
       description: 'Only unread emails from inbox',
       icon: '📬',
       query: 'is:unread'
-    },
-    {
-      id: 'starred',
-      name: 'Starred Emails',
-      description: 'All starred emails from inbox',
-      icon: '⭐',
-      query: 'is:starred'
-    },
-    {
-      id: 'inbox-all',
-      name: 'Entire Inbox',
-      description: 'All emails in inbox',
-      icon: '📥',
-      labelId: 'INBOX'
     }
   ]
 
