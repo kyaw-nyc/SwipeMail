@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import EmailAnalysisDisplay from './EmailAnalysisDisplay'
+import IsolatedEmailContent from './IsolatedEmailContent'
 
 function SwipeableEmailCard({ email, onSwipeLeft, onSwipeRight, onAddToCalendar, eventInfo, isTopCard = false, isSwiping = false, stackIndex = 0 }) {
   const [isDragging, setIsDragging] = useState(false)
@@ -287,11 +288,8 @@ function SwipeableEmailCard({ email, onSwipeLeft, onSwipeRight, onAddToCalendar,
         </div>
 
         <div className="email-snippet">
-          <div
-            className="email-body"
-            dangerouslySetInnerHTML={{
-              __html: email.body || email.snippet || 'No content available'
-            }}
+          <IsolatedEmailContent
+            emailHTML={email.body || email.snippet || 'No content available'}
           />
         </div>
       </div>

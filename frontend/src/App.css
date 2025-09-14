@@ -1575,11 +1575,20 @@ body::before {
   hyphens: auto;
 }
 
+/* Shadow DOM Email Isolation - No additional CSS needed */
+/* Email content is completely isolated in Shadow DOM */
+.isolated-email-container {
+  /* Container for Shadow DOM email content */
+  display: block;
+  width: 100%;
+  min-height: 100px;
+}
+
 .swipe-hints {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  position: absolute !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
   height: 70px;
   display: flex;
   justify-content: space-between;
