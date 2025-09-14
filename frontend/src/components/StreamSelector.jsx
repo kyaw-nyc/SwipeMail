@@ -12,7 +12,7 @@ function StreamSelector({ currentStream, onStreamChange }) {
     {
       id: 'starred',
       name: 'Starred Emails',
-      description: 'All starred emails',
+      description: 'All starred emails from inbox',
       icon: '⭐',
       query: 'is:starred'
     },
@@ -21,7 +21,7 @@ function StreamSelector({ currentStream, onStreamChange }) {
       name: 'Entire Inbox',
       description: 'All emails in inbox',
       icon: '📥',
-      query: 'in:inbox'
+      labelId: 'INBOX'
     }
   ]
 

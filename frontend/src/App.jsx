@@ -10,7 +10,13 @@ function App() {
   const [user, setUser] = useState(null)
   const [accessToken, setAccessToken] = useState(null)
   const [emails, setEmails] = useState([])
+  const [streamEmails, setStreamEmails] = useState({
+    unread: [],
+    starred: [],
+    'inbox-all': []
+  })
   const [loading, setLoading] = useState(false)
+  const [streamsLoaded, setStreamsLoaded] = useState(false)
   const [checkingAuth, setCheckingAuth] = useState(true)
   const [currentFolder, setCurrentFolder] = useState('STREAM')
   const [availableFolders, setAvailableFolders] = useState([])
@@ -205,8 +211,10 @@ function App() {
   const handleStreamChange = (stream) => {
     console.log('Stream changed to:', stream.name)
     setCurrentStream(stream)
-    // Only refetch emails if we're currently viewing STREAM
-    if (currentFolder === 'STREAM') {
+    // Use cached emails if available, no need to refetch
+    if (currentFolder === 'STREAM' && streamsLoaded) {
+      setEmails(streamEmails[stream.id] || [])
+    } else if (currentFolder === 'STREAM') {
       fetchEmails('STREAM')
     }
   }
@@ -296,76 +304,126 @@ function App() {
     }
   }
 
-  const fetchEmails = async (folderId = currentFolder) => {
-    setLoading(true)
-    // Fetch emails from Gmail API
+  const fetchEmailsWithQuery = async (query) => {
     try {
-        if (!accessToken) {
-          console.log('No access token available. User needs to sign in with Gmail permissions.')
-          setEmails([])
-          return
-        }
+      if (!accessToken) {
+        console.log('No access token available. User needs to sign in with Gmail permissions.')
+        return []
+      }
 
+      console.log(`📧 Fetching emails with query: "${query}"`)
+      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=500&q=${encodeURIComponent(query)}`
+      console.log(`🌐 Request URL: ${url}`)
 
-        console.log(`Fetching emails from Gmail API for folder: ${folderId}...`)
+      // Fetch messages from Gmail API
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      })
 
-        // Build query based on folder and stream
-        let query = 'maxResults=20'
-        if (folderId === 'STREAM') {
-          // Use current stream query
-          query += `&q=${currentStream.query}`
-        } else {
-          // For SwipeMail AI folders (custom labels)
-          query += `&labelIds=${folderId}`
-        }
+      console.log(`📡 API Response status: ${response.status}`)
 
-        // Fetch messages from Gmail API
-        const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?${query}`, {
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`❌ Gmail API error: ${response.status} ${response.statusText}`, errorText)
+        throw new Error(`Gmail API error: ${response.status} ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      console.log('📋 Raw API response:', data)
+
+      if (!data.messages || data.messages.length === 0) {
+        console.log(`❌ No messages found for query: "${query}"`)
+        return []
+      }
+
+      console.log(`✅ Found ${data.messages.length} messages for query "${query}", fetching details...`)
+
+      // Fetch details for each message (reuse existing email processing logic)
+      const result = await processEmailDetails(data.messages)
+      console.log(`🎯 Processed ${result.length} emails for query "${query}"`)
+      return result
+    } catch (error) {
+      console.error(`❌ Error fetching emails for query "${query}":`, error)
+      return []
+    }
+  }
+
+  const fetchEmailsWithLabelId = async (labelId) => {
+    try {
+      if (!accessToken) {
+        console.log('No access token available. User needs to sign in with Gmail permissions.')
+        return []
+      }
+
+      console.log(`🏷️ Fetching emails with labelId: "${labelId}"`)
+      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=500&labelIds=${labelId}`
+      console.log(`🌐 Request URL: ${url}`)
+
+      // Fetch messages from Gmail API
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      console.log(`📡 API Response status: ${response.status}`)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`❌ Gmail API error: ${response.status} ${response.statusText}`, errorText)
+        throw new Error(`Gmail API error: ${response.status} ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      console.log('📋 Raw API response:', data)
+
+      if (!data.messages || data.messages.length === 0) {
+        console.log(`❌ No messages found for labelId: "${labelId}"`)
+        return []
+      }
+
+      console.log(`✅ Found ${data.messages.length} messages for labelId "${labelId}", fetching details...`)
+
+      // Fetch details for each message (reuse existing email processing logic)
+      const result = await processEmailDetails(data.messages)
+      console.log(`🎯 Processed ${result.length} emails for labelId "${labelId}"`)
+      return result
+    } catch (error) {
+      console.error(`❌ Error fetching emails for labelId "${labelId}":`, error)
+      return []
+    }
+  }
+
+  const processEmailDetails = async (messages) => {
+    // Fetch details for each message
+    const emailPromises = messages.map(async (message) => {
+      try {
+        const emailResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}`, {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
         })
 
-        if (!response.ok) {
-          throw new Error(`Gmail API error: ${response.status} ${response.statusText}`)
+        if (!emailResponse.ok) {
+          console.error(`Failed to fetch message ${message.id}:`, emailResponse.status)
+          return null
         }
 
-        const data = await response.json()
+        return emailResponse.json()
+      } catch (error) {
+        console.error(`Error fetching message ${message.id}:`, error)
+        return null
+      }
+    })
 
-        if (!data.messages || data.messages.length === 0) {
-          console.log('No unread messages found')
-          setEmails([])
-          return
-        }
+    const emailsData = await Promise.all(emailPromises)
 
-        console.log(`Found ${data.messages.length} unread messages, fetching details...`)
-
-        // Fetch details for each message
-        const emailPromises = data.messages.map(async (message) => {
-          try {
-            const emailResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}`, {
-              headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json',
-              },
-            })
-
-            if (!emailResponse.ok) {
-              console.error(`Failed to fetch message ${message.id}:`, emailResponse.status)
-              return null
-            }
-
-            return emailResponse.json()
-          } catch (error) {
-            console.error(`Error fetching message ${message.id}:`, error)
-            return null
-          }
-        })
-
-        const emailsData = await Promise.all(emailPromises)
-
-        // Filter out failed requests and format the emails
+    // Filter out failed requests and format the emails
         // Helper functions for email processing
         const fetchAttachment = async (messageId, attachmentId) => {
           try {
@@ -520,32 +578,78 @@ function App() {
           return email.snippet || 'No content available'
         }
 
-        // Process emails with async body processing
-        const formattedEmails = await Promise.all(
-          emailsData
-            .filter(email => email !== null)
-            .map(async email => {
-              const headers = email.payload?.headers || []
+    // Process emails with async body processing
+    const formattedEmails = await Promise.all(
+      emailsData
+        .filter(email => email !== null)
+        .map(async email => {
+          const headers = email.payload?.headers || []
 
-              return {
-                id: email.id,
-                subject: cleanTextContent(headers.find(h => h.name === 'Subject')?.value || 'No Subject'),
-                from: headers.find(h => h.name === 'From')?.value || 'Unknown Sender',
-                snippet: cleanTextContent(email.snippet || 'No preview available'),
-                body: await getEmailBody(email.payload, email.id),
-                labelIds: email.labelIds || [],
-                threadId: email.threadId,
-                date: headers.find(h => h.name === 'Date')?.value
-              }
-            })
-        )
+          return {
+            id: email.id,
+            subject: cleanTextContent(headers.find(h => h.name === 'Subject')?.value || 'No Subject'),
+            from: headers.find(h => h.name === 'From')?.value || 'Unknown Sender',
+            snippet: cleanTextContent(email.snippet || 'No preview available'),
+            body: await getEmailBody(email.payload, email.id),
+            labelIds: email.labelIds || [],
+            threadId: email.threadId,
+            date: headers.find(h => h.name === 'Date')?.value
+          }
+        })
+    )
 
-        console.log(`Successfully loaded ${formattedEmails.length} emails`)
-        setEmails(formattedEmails)
+    return formattedEmails
+  }
 
-        // AI analysis will be triggered only when user expresses interest (swipes right)
+  const loadAllStreams = async () => {
+    if (!accessToken) return
+
+    setLoading(true)
+    console.log('Loading all streams...')
+
+    try {
+      const streams = [
+        { id: 'unread', query: 'is:unread' },
+        { id: 'starred', query: 'is:starred' },
+        { id: 'inbox-all', labelId: 'INBOX' }
+      ]
+
+      // Fetch all streams in parallel
+      const streamPromises = streams.map(async (stream) => {
+        if (stream.query) {
+          console.log(`Fetching stream ${stream.id} with query: ${stream.query}`)
+          const emails = await fetchEmailsWithQuery(stream.query)
+          console.log(`Stream ${stream.id} returned ${emails.length} emails`)
+          return { id: stream.id, emails }
+        } else if (stream.labelId) {
+          console.log(`Fetching stream ${stream.id} with labelId: ${stream.labelId}`)
+          const emails = await fetchEmailsWithLabelId(stream.labelId)
+          console.log(`Stream ${stream.id} returned ${emails.length} emails`)
+          return { id: stream.id, emails }
+        }
+      })
+
+      const streamResults = await Promise.all(streamPromises)
+
+      // Update stream cache
+      const newStreamEmails = {}
+      streamResults.forEach(({ id, emails }) => {
+        newStreamEmails[id] = emails
+      })
+
+      setStreamEmails(newStreamEmails)
+      setStreamsLoaded(true)
+
+      // Set current emails to the current stream
+      setEmails(newStreamEmails[currentStream.id] || [])
+
+      console.log('All streams loaded successfully:', {
+        unread: newStreamEmails.unread.length,
+        starred: newStreamEmails.starred.length,
+        'inbox-all': newStreamEmails['inbox-all'].length
+      })
     } catch (error) {
-      console.error('Error fetching emails:', error)
+      console.error('Error loading streams:', error)
     } finally {
       setLoading(false)
     }
@@ -721,6 +825,64 @@ function App() {
     }
   }
 
+  const fetchEmails = async (folderId) => {
+    setLoading(true)
+    try {
+      if (!accessToken) {
+        console.log('No access token available. User needs to sign in with Gmail permissions.')
+        setEmails([])
+        return
+      }
+
+      console.log(`Fetching emails from Gmail API for folder: ${folderId}...`)
+
+      if (folderId === 'STREAM') {
+        // For streams, use cached data if available
+        if (streamsLoaded) {
+          setEmails(streamEmails[currentStream.id] || [])
+          setLoading(false)
+          return
+        } else {
+          // Load all streams if not loaded yet
+          await loadAllStreams()
+          return
+        }
+      }
+
+      // For SwipeMail AI folders (custom labels) - fetch directly
+      const query = `labelIds=${folderId}`
+      const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=500&${query}`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(`Gmail API error: ${response.status} ${response.statusText}`)
+      }
+
+      const data = await response.json()
+
+      if (!data.messages || data.messages.length === 0) {
+        console.log('No messages found for folder:', folderId)
+        setEmails([])
+        return
+      }
+
+      console.log(`Found ${data.messages.length} messages, processing details...`)
+      const formattedEmails = await processEmailDetails(data.messages)
+
+      console.log(`Successfully loaded ${formattedEmails.length} emails`)
+      setEmails(formattedEmails)
+
+    } catch (error) {
+      console.error('Error fetching emails:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleFolderChange = (folderId) => {
     setCurrentFolder(folderId)
     setEmails([])
@@ -731,12 +893,12 @@ function App() {
   useEffect(() => {
     if (user && accessToken) {
       fetchFolders()
-      fetchEmails('STREAM') // Start with stream view
+      loadAllStreams() // Load all streams on app startup
     }
   }, [user, accessToken])
 
   useEffect(() => {
-    if (user && accessToken && currentFolder) {
+    if (user && accessToken && currentFolder && currentFolder !== 'STREAM') {
       fetchEmails(currentFolder)
     }
   }, [currentFolder])
@@ -755,6 +917,31 @@ function App() {
 
   return (
     <div className="app">
+      {/* Fun loading screen for initial stream loading */}
+      {user && !streamsLoaded && (
+        <div className="stream-loading-overlay">
+          <div className="stream-loading-content">
+            <div className="loading-animation">
+              <div className="email-icons">
+                <div className="email-icon">📧</div>
+                <div className="email-icon">📨</div>
+                <div className="email-icon">📩</div>
+                <div className="email-icon">✉️</div>
+              </div>
+              <div className="loading-text">
+                <h2>🚀 Loading your emails...</h2>
+                <p>Organizing your inbox with AI magic</p>
+                <div className="loading-dots">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {user && (
         <header className="app-header">
           <h1>SwipeMail</h1>
@@ -779,8 +966,11 @@ function App() {
               onStreamChange={handleStreamChange}
             />
             <div className="email-section">
-              {loading ? (
-                <div className="loading">Loading emails...</div>
+              {loading && streamsLoaded ? (
+                <div className="loading">
+                  <p>Loading emails...</p>
+                  <div className="loading-spinner"></div>
+                </div>
               ) : (
                 <>
                   {isAnalyzing && (
