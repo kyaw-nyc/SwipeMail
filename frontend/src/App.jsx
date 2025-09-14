@@ -30,6 +30,13 @@ function App() {
     icon: '📬',
     query: 'is:unread'
   })
+  const [currentTimeRange, setCurrentTimeRange] = useState({
+    id: '1w',
+    label: 'Last week',
+    description: 'Past 7 days',
+    icon: '📊',
+    days: 7
+  })
   const [remainingCount, setRemainingCount] = useState(0)
   const [loadTotal, setLoadTotal] = useState(0)
   const [loadProgress, setLoadProgress] = useState(0)
@@ -387,6 +394,34 @@ function App() {
     }
   }
 
+  const handleTimeRangeChange = (timeRange) => {
+    console.log('Time range changed to:', timeRange.label)
+    setCurrentTimeRange(timeRange)
+    // Clear current emails and refetch with new time range
+    setEmails([])
+    setStreamEmails({}) // Clear cached stream emails
+    // Refetch current view with new time range
+    if (currentFolder === 'STREAM') {
+      loadAllStreams()
+    } else {
+      fetchEmails(currentFolder)
+    }
+  }
+
+  // Helper function to build query with time range
+  const buildQueryWithTimeRange = (baseQuery) => {
+    if (!currentTimeRange.days) {
+      // "All time" - no date restriction
+      return baseQuery
+    }
+
+    const date = new Date()
+    date.setDate(date.getDate() - currentTimeRange.days)
+    const afterDate = date.toISOString().split('T')[0] // YYYY-MM-DD format
+
+    return `${baseQuery} after:${afterDate}`
+  }
+
   // Function to clean and sanitize text content
   const cleanTextContent = (text) => {
     if (!text) return text
@@ -479,8 +514,9 @@ function App() {
         return []
       }
 
-      console.log(`📧 Fetching emails with query: "${query}"`)
-      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=500&q=${encodeURIComponent(query)}`
+      const queryWithTimeRange = buildQueryWithTimeRange(query)
+      console.log(`📧 Fetching emails with query: "${queryWithTimeRange}"`)
+      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=500&q=${encodeURIComponent(queryWithTimeRange)}`
       console.log(`🌐 Request URL: ${url}`)
 
       // Fetch messages from Gmail API
@@ -528,7 +564,10 @@ function App() {
       }
 
       console.log(`🏷️ Fetching emails with labelId: "${labelId}"`)
-      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=500&labelIds=${labelId}`
+      // Convert labelId to query for time filtering support
+      const baseQuery = `label:${labelId}`
+      const queryWithTimeRange = buildQueryWithTimeRange(baseQuery)
+      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=500&q=${encodeURIComponent(queryWithTimeRange)}`
       console.log(`🌐 Request URL: ${url}`)
 
       // Fetch messages from Gmail API
@@ -1145,6 +1184,8 @@ function App() {
               onFolderChange={handleFolderChange}
               currentStream={currentStream}
               onStreamChange={handleStreamChange}
+              currentTimeRange={currentTimeRange}
+              onTimeRangeChange={handleTimeRangeChange}
             />
             <div className="email-section">
               {loading && streamsLoaded ? (

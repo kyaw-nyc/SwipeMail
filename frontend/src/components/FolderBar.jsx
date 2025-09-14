@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import StreamSelector from './StreamSelector'
+import TimeRangeSelector from './TimeRangeSelector'
 
-function FolderBar({ folders = [], currentFolder, onFolderChange, currentStream, onStreamChange }) {
+function FolderBar({ folders = [], currentFolder, onFolderChange, currentStream, onStreamChange, currentTimeRange, onTimeRangeChange }) {
   // Map Gmail system labels to user-friendly names
   const getFolderDisplayName = (folder) => {
     const nameMap = {
@@ -32,6 +33,14 @@ function FolderBar({ folders = [], currentFolder, onFolderChange, currentStream,
 
   return (
     <div className="folder-bar">
+      {/* Time Range Selector */}
+      {onTimeRangeChange && (
+        <TimeRangeSelector
+          currentRange={currentTimeRange}
+          onRangeChange={onTimeRangeChange}
+        />
+      )}
+
       {/* Stream Selector - always show since we removed system folders */}
       {onStreamChange && (
         <StreamSelector
