@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, forwardRef, useImperativeHandle } from 'react'
 
-function AuthButtonImpl({ user, onLoginSuccess, onLogout }, ref) {
+function AuthButtonImpl({ user, onLoginSuccess, onLogout, hideButton = false }, ref) {
   const [authReady, setAuthReady] = useState(false)
   const [authError, setAuthError] = useState(null)
   const googleButtonRef = useRef(null)
@@ -53,8 +53,8 @@ function AuthButtonImpl({ user, onLoginSuccess, onLogout }, ref) {
 
         const client = window.google.accounts.oauth2.initTokenClient({
           client_id: clientId,
-          // Request basic profile + Gmail modify so we can fetch user info and access Gmail
-          scope: 'openid email profile https://www.googleapis.com/auth/gmail.modify',
+          // Request basic profile + Gmail + Calendar
+          scope: 'openid email profile https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/calendar.events',
           prompt: 'consent',
           callback: async (tokenResponse) => {
             try {
@@ -165,7 +165,7 @@ function AuthButtonImpl({ user, onLoginSuccess, onLogout }, ref) {
       if (window.google?.accounts?.oauth2) {
         const client = window.google.accounts.oauth2.initTokenClient({
           client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
-          scope: 'https://www.googleapis.com/auth/gmail.modify',
+          scope: 'https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/calendar.events',
           prompt: 'consent', // Always show consent screen
           callback: (tokenResponse) => {
             if (tokenResponse.access_token) {
@@ -238,12 +238,10 @@ function AuthButtonImpl({ user, onLoginSuccess, onLogout }, ref) {
         <div className="user-info">
           <img src={user.picture} alt={user.name} className="user-avatar" />
           <span className="user-name">{user.name}</span>
-          <button onClick={handleSignOut} className="sign-out-btn">
-            Sign Out
-          </button>
+          <button onClick={handleSignOut} className="btn">Sign out</button>
         </div>
       ) : (
-        <div className="sign-in-container">
+        <div className="sign-in-container" style={hideButton ? { display: 'none' } : undefined}>
           {authError ? (
             <div className="auth-error">
               <h3>⚠️ Configuration Required</h3>

@@ -4,6 +4,8 @@ import AuthButton from './components/AuthButton'
 import EmailStack from './components/EmailStack'
 import FolderBar from './components/FolderBar'
 import { useCerebrasAnalysis } from './hooks/useCerebrasAnalysis'
+import cerebrasApi from './services/cerebrasApi'
+import { createCalendarEvent } from './services/calendar'
 import './App.css'
 
 function App() {
@@ -28,9 +30,12 @@ function App() {
     query: 'is:unread'
   })
   const [remainingCount, setRemainingCount] = useState(0)
+  const [loadTotal, setLoadTotal] = useState(0)
+  const [loadProgress, setLoadProgress] = useState(0)
 
   // Initialize Cerebras analysis hook
   const { analyzeEmail, isAnalyzing } = useCerebrasAnalysis()
+  const [eventAnalysis, setEventAnalysis] = useState({}) // id -> { loading, result, error }
 
   // Cursor-follow glow like SwipeMail package
   useEffect(() => {
@@ -91,6 +96,29 @@ function App() {
 
     checkExistingSession()
   }, [])
+
+  // Ensure event extraction for first few emails (top of stack)
+  useEffect(() => {
+    const primeEventDetection = async () => {
+      const toAnalyze = emails.slice(0, 3)
+      for (const e of toAnalyze) {
+        if (!e?.id) continue
+        if (eventAnalysis[e.id]?.loading || eventAnalysis[e.id]?.result) continue
+        try {
+          setEventAnalysis((prev) => ({ ...prev, [e.id]: { ...(prev[e.id] || {}), loading: true } }))
+          const res = await cerebrasApi.extractEventFromEmail({
+            subject: e.subject || '',
+            from: e.from || '',
+            body: (e.body || '').toString().replace(/<[^>]+>/g, ' ').slice(0, 4000),
+          })
+          setEventAnalysis((prev) => ({ ...prev, [e.id]: { loading: false, result: res } }))
+        } catch (err) {
+          setEventAnalysis((prev) => ({ ...prev, [e.id]: { loading: false, error: err.message || 'Failed' } }))
+        }
+      }
+    }
+    if (emails?.length) primeEventDetection()
+  }, [emails])
 
 
   // Prevent accidental back navigation (only needed when emails are loaded)
@@ -194,6 +222,102 @@ function App() {
     Cookies.remove('swipemail_token')
     Cookies.remove('swipemail_user')
     console.log('Session cleared from cookies')
+  }
+
+  // Add to Google Calendar via Cerebras event extraction
+  const handleAddToCalendar = async (email) => {
+    try {
+      if (!accessToken) {
+        alert('Please sign in first to access Calendar')
+        return
+      }
+      // Ensure Calendar scope access token (request if needed)
+      const ensureCalendarToken = () => new Promise((resolve, reject) => {
+        try {
+          if (!window.google?.accounts?.oauth2) return resolve(accessToken)
+          const client = window.google.accounts.oauth2.initTokenClient({
+            client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+            scope: 'https://www.googleapis.com/auth/calendar.events',
+            prompt: '',
+            callback: (tokenResponse) => {
+              if (tokenResponse?.access_token) {
+                resolve(tokenResponse.access_token)
+              } else {
+                resolve(accessToken)
+              }
+            },
+            error_callback: () => resolve(accessToken),
+          })
+          client.requestAccessToken()
+        } catch (e) {
+          resolve(accessToken)
+        }
+      })
+      // Prefer full body for extraction; fallback to snippet
+      const forAi = {
+        subject: email.subject || '',
+        from: email.from || '',
+        body: (email.body && typeof email.body === 'string' ? email.body.replace(/<[^>]+>/g, ' ') : email.snippet || ''),
+      }
+      const result = await cerebrasApi.extractEventFromEmail(forAi)
+      let event = null
+      if (result?.has_event) {
+        // Map result to Calendar event
+        const title = result.event_title || email.subject || 'Event from email'
+        const description = `From: ${email.from}\n\n${(email.body || '').toString().replace(/<[^>]+>/g, ' ').slice(0, 800)}`
+        const tz = result.timezone || undefined
+        const toStartEnd = (s) => {
+          if (!s) return null
+          if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return { date: s }
+          const d = new Date(s)
+          if (isNaN(d.getTime())) return null
+          const obj = { dateTime: d.toISOString() }
+          if (tz) obj.timeZone = tz
+          return obj
+        }
+        const start = toStartEnd(result.start_time)
+        let end = toStartEnd(result.end_time)
+        if (!start) {
+          // Fallback to now +1h
+          const now = new Date()
+          const later = new Date(now.getTime() + 60 * 60 * 1000)
+          event = { summary: title, description, start: { dateTime: now.toISOString() }, end: { dateTime: later.toISOString() } }
+        } else {
+          if (!end) {
+            if (start.dateTime) {
+              const dt = new Date(start.dateTime)
+              const dt2 = new Date(dt.getTime() + 60 * 60 * 1000)
+              end = { dateTime: dt2.toISOString() }
+              if (tz) end.timeZone = tz
+            } else if (start.date) {
+              end = { date: start.date }
+            }
+          }
+          event = { summary: title, description, location: result.location || undefined, start, end }
+        }
+      }
+      if (!event) {
+        // Minimal fallback event
+        const now = new Date()
+        const later = new Date(now.getTime() + 60 * 60 * 1000)
+        event = {
+          summary: email.subject || 'Event from email',
+          description: `From: ${email.from}\n\n${(email.body || '').toString().replace(/<[^>]+>/g, ' ').slice(0, 800)}`,
+          start: { dateTime: now.toISOString() },
+          end: { dateTime: later.toISOString() },
+        }
+      }
+      const calToken = await ensureCalendarToken()
+      console.log('[Calendar] Creating event with payload:', event)
+      const created = await createCalendarEvent(calToken, event)
+      console.log('[Calendar] Event created:', created)
+      const link = created?.htmlLink
+      if (link) window.open(link, '_blank')
+      alert('Calendar event created')
+    } catch (e) {
+      console.error('Add to Calendar failed:', e)
+      alert(e.message || 'Failed to create calendar event')
+    }
   }
 
   // Trigger the Google sign-in button rendered by AuthButton
@@ -400,6 +524,8 @@ function App() {
 
   const processEmailDetails = async (messages) => {
     // Fetch details for each message
+    setLoadTotal(messages.length || 0)
+    setLoadProgress(0)
     const emailPromises = messages.map(async (message) => {
       try {
         const emailResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}`, {
@@ -414,7 +540,9 @@ function App() {
           return null
         }
 
-        return emailResponse.json()
+        const json = await emailResponse.json()
+        setLoadProgress((p) => Math.min((p || 0) + 1, messages.length || 0))
+        return json
       } catch (error) {
         console.error(`Error fetching message ${message.id}:`, error)
         return null
@@ -504,7 +632,7 @@ function App() {
             .replace(/<img([^>]*?)>/gi, '<img$1 style="max-width: 100%; height: auto; display: block; margin: 0.5rem 0;">')
         }
 
-        const getEmailBody = async (payload, messageId) => {
+        const getEmailBody = async (payload, messageId, fallbackSnippet = '') => {
           if (!payload) return 'No content available'
 
           let content = ''
@@ -530,7 +658,7 @@ function App() {
               } catch (e) {
                 console.error('Error decoding email body:', e)
                 // Fallback to using snippet
-                content = email.snippet || ''
+                content = fallbackSnippet || ''
               }
             }
           }
@@ -550,7 +678,7 @@ function App() {
             } catch (e) {
               console.error('Error decoding email body:', e)
               // Fallback to using snippet
-              content = email.snippet || ''
+              content = fallbackSnippet || ''
             }
           }
 
@@ -575,7 +703,7 @@ function App() {
           }
 
           // Fallback to snippet
-          return email.snippet || 'No content available'
+          return fallbackSnippet || 'No content available'
         }
 
     // Process emails with async body processing
@@ -590,7 +718,7 @@ function App() {
             subject: cleanTextContent(headers.find(h => h.name === 'Subject')?.value || 'No Subject'),
             from: headers.find(h => h.name === 'From')?.value || 'Unknown Sender',
             snippet: cleanTextContent(email.snippet || 'No preview available'),
-            body: await getEmailBody(email.payload, email.id),
+            body: await getEmailBody(email.payload, email.id, email.snippet || ''),
             labelIds: email.labelIds || [],
             threadId: email.threadId,
             date: headers.find(h => h.name === 'Date')?.value
@@ -598,6 +726,8 @@ function App() {
         })
     )
 
+    // Complete progress on finish
+    setLoadProgress(messages.length || 0)
     return formattedEmails
   }
 
@@ -609,9 +739,7 @@ function App() {
 
     try {
       const streams = [
-        { id: 'unread', query: 'is:unread' },
-        { id: 'starred', query: 'is:starred' },
-        { id: 'inbox-all', labelId: 'INBOX' }
+        { id: 'unread', query: 'is:unread newer_than:2d' },
       ]
 
       // Fetch all streams in parallel
@@ -644,9 +772,7 @@ function App() {
       setEmails(newStreamEmails[currentStream.id] || [])
 
       console.log('All streams loaded successfully:', {
-        unread: newStreamEmails.unread.length,
-        starred: newStreamEmails.starred.length,
-        'inbox-all': newStreamEmails['inbox-all'].length
+        unread: newStreamEmails.unread?.length || 0,
       })
     } catch (error) {
       console.error('Error loading streams:', error)
@@ -970,6 +1096,19 @@ function App() {
                 <div className="loading">
                   <p>Loading emails...</p>
                   <div className="loading-spinner"></div>
+                  {loadTotal > 0 && (
+                    <div style={{ marginTop: 8, height: 6, background: '#eef2ff', borderRadius: 999, overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          height: 6,
+                          width: `${Math.max(0, Math.min(100, (loadProgress / Math.max(1, loadTotal)) * 100))}%`,
+                          background: 'linear-gradient(90deg,#8b5cf6,#6366f1)',
+                          transition: 'width 240ms ease',
+                          borderRadius: 999,
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
               ) : (
                 <>
@@ -991,6 +1130,8 @@ function App() {
                     onAnalyzeAndSort={analyzeAndSortEmail}
                     onFlagIncorrect={flagIncorrectSorting}
                     onRemainingCountChange={setRemainingCount}
+                    onAddToCalendar={handleAddToCalendar}
+                    getEventInfo={(id) => eventAnalysis[id]}
                   />
                 </>
               )}
@@ -1095,15 +1236,20 @@ function App() {
                 </div>
 
                 <div className="cta-section">
-                  <AuthButton
-                    ref={authRef}
-                    user={user}
-                    onLoginSuccess={handleLoginSuccess}
-                    onLogout={handleLogout}
-                  />
-                  <p className="privacy-note">
-                    🔒 Private & secure
-                  </p>
+                  <button className="btn btn-primary btn-lg" onClick={triggerGoogleSignIn}>
+                    Sign in with Google
+                  </button>
+                  {/* Keep AuthButton mounted but hidden to manage GIS + token flow via ref */}
+                  <div style={{ display: 'none' }}>
+                    <AuthButton
+                      ref={authRef}
+                      hideButton={true}
+                      user={user}
+                      onLoginSuccess={handleLoginSuccess}
+                      onLogout={handleLogout}
+                    />
+                  </div>
+                  <p className="privacy-note">🔒 Private & secure</p>
                 </div>
               </div>
             </div>
