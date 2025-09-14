@@ -2,191 +2,115 @@
   "userId": "demo-user",
   "preferences": {
     "technology": {
-      "right": 1,
-      "left": 18
+      "right": 14,
+      "left": 8
     },
     "career": {
-      "right": 0,
-      "left": 7
-    },
-    "finance": {
-      "right": 0,
-      "left": 3
+      "right": 9,
+      "left": 1
     },
     "marketing": {
-      "right": 1,
-      "left": 18
-    },
-    "event": {
-      "right": 1,
-      "left": 3
-    },
-    "newsletter": {
-      "right": 1,
-      "left": 13
-    },
-    "urgent": {
-      "right": 0,
-      "left": 7
-    },
-    "personal": {
-      "right": 0,
-      "left": 3
-    },
-    "media": {
-      "right": 0,
-      "left": 3
-    },
-    "informational": {
-      "right": 0,
-      "left": 14
-    },
-    "entertainment": {
-      "right": 0,
-      "left": 3
-    },
-    "digital_access": {
-      "right": 0,
-      "left": 1
-    },
-    "subscription": {
-      "right": 0,
-      "left": 1
-    },
-    "local_stories": {
-      "right": 0,
-      "left": 1
-    },
-    "investigations": {
-      "right": 0,
-      "left": 1
-    },
-    "here": {
-      "right": 0,
-      "left": 1
-    },
-    "the": {
-      "right": 0,
-      "left": 1
-    },
-    "json": {
-      "right": 0,
-      "left": 1
-    },
-    "array": {
-      "right": 0,
-      "left": 1
-    },
-    "descriptive": {
-      "right": 0,
-      "left": 1
-    },
-    "categories": {
-      "right": 0,
-      "left": 1
-    },
-    "topics": {
-      "right": 0,
-      "left": 1
-    },
-    "e-commerce": {
-      "right": 0,
-      "left": 3
-    },
-    "promotion": {
-      "right": 0,
-      "left": 9
-    },
-    "sales_pitch": {
-      "right": 0,
-      "left": 7
-    },
-    "limited_time_offer": {
-      "right": 0,
+      "right": 7,
       "left": 5
     },
-    "retail": {
-      "right": 0,
-      "left": 3
-    },
-    "transactional": {
-      "right": 0,
-      "left": 3
-    },
-    "healthcare": {
-      "right": 0,
-      "left": 2
-    },
-    "announcement": {
-      "right": 0,
-      "left": 4
-    },
-    "holiday": {
-      "right": 0,
-      "left": 2
-    },
-    "industry": {
-      "right": 0,
-      "left": 4
-    },
-    "professional": {
-      "right": 0,
+    "newsletter": {
+      "right": 9,
       "left": 2
     },
     "business": {
-      "right": 0,
-      "left": 12
-    },
-    "directory": {
-      "right": 0,
-      "left": 2
-    },
-    "services": {
-      "right": 0,
+      "right": 6,
       "left": 4
     },
-    "listings": {
-      "right": 0,
-      "left": 2
+    "finance": {
+      "right": 3,
+      "left": 1
     },
-    "contact_management": {
-      "right": 0,
-      "left": 2
+    "response": {
+      "right": 1,
+      "left": 1
     },
     "productivity": {
-      "right": 0,
-      "left": 4
+      "right": 1,
+      "left": 1
+    },
+    "informational": {
+      "right": 3,
+      "left": 2
     },
     "email marketing": {
-      "right": 0,
-      "left": 2
+      "right": 1,
+      "left": 1
     },
-    "international": {
-      "right": 0,
-      "left": 2
+    "customer service": {
+      "right": 1,
+      "left": 1
     },
-    "financial services": {
-      "right": 0,
-      "left": 2
+    "software": {
+      "right": 1,
+      "left": 1
     },
-    "product": {
-      "right": 0,
-      "left": 2
+    "communication": {
+      "right": 1,
+      "left": 1
     },
-    "food_beverage": {
-      "right": 0,
-      "left": 2
+    "news": {
+      "right": 1,
+      "left": 1
     },
-    "events": {
-      "right": 0,
-      "left": 2
+    "announcement": {
+      "right": 1,
+      "left": 1
     },
-    "digital_media": {
-      "right": 0,
-      "left": 2
+    "social_justice": {
+      "right": 1,
+      "left": 1
+    },
+    "polls": {
+      "right": 1,
+      "left": 1
+    },
+    "public_opinion": {
+      "right": 1,
+      "left": 1
+    },
+    "non_profit": {
+      "right": 1,
+      "left": 1
+    },
+    "social_science": {
+      "right": 1,
+      "left": 1
+    },
+    "education": {
+      "right": 1,
+      "left": 0
+    },
+    "online_learning": {
+      "right": 1,
+      "left": 0
+    },
+    "training": {
+      "right": 1,
+      "left": 0
+    },
+    "professional_development": {
+      "right": 1,
+      "left": 0
+    },
+    "learning_opportunities": {
+      "right": 1,
+      "left": 0
+    },
+    "event": {
+      "right": 1,
+      "left": 0
+    },
+    "urgent": {
+      "right": 3,
+      "left": 0
     }
   },
-  "emailsProcessed": 35,
-  "lastUpdated": "2025-09-14T11:57:47.345Z",
+  "emailsProcessed": 25,
+  "lastUpdated": "2025-09-14T12:25:41.442Z",
   "version": "1.0"
 }

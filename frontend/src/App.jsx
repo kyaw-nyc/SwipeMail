@@ -625,9 +625,12 @@ function App() {
       if (currentFolder === 'STREAM') {
         if (currentStream?.id === 'unread') {
           const source = masterUnreadEmails.length ? masterUnreadEmails : allFetchedEmails
+          console.log(`🔍 Filtering ${source.length} cached emails to ${newDays || 'all'} days`)
           const filtered = filterEmailsByTimeRange(source, newDays)
-          setEmails(filtered)
-          setStreamEmails(prev => ({ ...prev, unread: filtered }))
+          console.log(`📊 Filtered to ${filtered.length} emails within time range`)
+          const rankedFiltered = await applyMLRanking(filtered, 'unread')
+          setEmails(rankedFiltered)
+          setStreamEmails(prev => ({ ...prev, unread: rankedFiltered }))
         } else if (currentStream?.id === 'smart') {
           const source = masterUnreadEmails.length ? masterUnreadEmails : allFetchedEmails
           const filtered = filterEmailsByTimeRange(source, newDays)
@@ -1376,6 +1379,14 @@ function App() {
     if (email && currentFolder === 'STREAM') {
       // Process ML feedback for "not interested" action (left swipe in stream)
       try {
+        // Extract and display tokens for this email
+        if (!email._tokens) {
+          email._tokens = await mlService.extractTokens(email)
+        }
+        console.log(`👎 Not interested in: "${email.subject}"`)
+        console.log(`📍 Tags identified: ${email._tokens.join(', ')}`)
+        console.log(`🧠 ML learning: These tags will be marked as less preferred`)
+
         await mlService.processEmailSwipe(email, 'not_interested')
 
         // If in Smart Recommendations stream, recompute scores after swipe (with delay)
@@ -1399,6 +1410,14 @@ function App() {
     if (currentFolder === 'STREAM') {
       // Process ML feedback for "interested" action (right swipe in stream)
       try {
+        // Extract and display tokens for this email
+        if (!email._tokens) {
+          email._tokens = await mlService.extractTokens(email)
+        }
+        console.log(`👍 Interested in: "${email.subject}"`)
+        console.log(`📍 Tags identified: ${email._tokens.join(', ')}`)
+        console.log(`🧠 ML learning: These tags will be marked as more preferred`)
+
         await mlService.processEmailSwipe(email, 'interested')
 
         // If in Smart Recommendations stream, recompute scores after swipe (with delay)

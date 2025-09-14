@@ -34,15 +34,51 @@ class PreferenceService {
       const data = await fs.readFile(profilePath, 'utf8')
       const profile = JSON.parse(data)
 
-      // Ensure profile has required structure
-      return {
+      // Ensure profile has required structure and migrate from v1.0 if needed
+      const migratedProfile = {
         userId,
         preferences: profile.preferences || {},
+        totalGood: profile.totalGood || 0,
+        totalBad: profile.totalBad || 0,
+        vocabulary: new Set(profile.vocabulary || []),
         emailsProcessed: profile.emailsProcessed || 0,
         lastUpdated: profile.lastUpdated || new Date().toISOString(),
         version: profile.version || '1.0',
         ...profile
       }
+
+      // Migrate from v1.0 to v2.0 format if needed
+      if (migratedProfile.version === '1.0') {
+        console.log(`Migrating user ${userId} profile from v1.0 to v2.0`)
+        migratedProfile.version = '2.0'
+
+        // Initialize missing fields
+        migratedProfile.totalGood = 0
+        migratedProfile.totalBad = 0
+
+        // Convert old preferences format { token: { right: X, left: Y } } to new format
+        const newPreferences = {}
+        Object.entries(migratedProfile.preferences).forEach(([token, data]) => {
+          if (data && typeof data === 'object') {
+            const rightCount = data.right || 0
+            const leftCount = data.left || 0
+            newPreferences[token] = { good: rightCount, bad: leftCount }
+            migratedProfile.totalGood += rightCount
+            migratedProfile.totalBad += leftCount
+            migratedProfile.vocabulary.add(token)
+          }
+        })
+        migratedProfile.preferences = newPreferences
+
+        // Save the migrated profile
+        const saved = await this.saveProfile(migratedProfile)
+        if (!saved) {
+          console.error(`Failed to save migrated profile for ${userId}`)
+          // Return the migrated profile anyway to prevent data loss
+        }
+      }
+
+      return migratedProfile
     } catch (error) {
       if (error.code === 'ENOENT') {
         // Create new profile
@@ -59,10 +95,13 @@ class PreferenceService {
   createNewProfile(userId) {
     return {
       userId,
-      preferences: {},
+      preferences: {}, // token -> { good: count, bad: count }
+      totalGood: 0,     // total tokens from all good emails
+      totalBad: 0,      // total tokens from all bad emails
+      vocabulary: new Set(), // all unique tokens seen
       emailsProcessed: 0,
       lastUpdated: new Date().toISOString(),
-      version: '1.0'
+      version: '2.0'
     }
   }
 
@@ -70,14 +109,67 @@ class PreferenceService {
    * Save user preference profile
    */
   async saveProfile(profile) {
+    const profilePath = this.getProfilePath(profile.userId)
+    const tempPath = profilePath + '.tmp'
+    const lockPath = profilePath + '.lock'
+
+    // Simple file-based locking mechanism
+    let lockAcquired = false
+    let retries = 0
+
+    while (!lockAcquired && retries < 10) {
+      try {
+        // Try to create lock file (will fail if it exists)
+        await fs.writeFile(lockPath, Date.now().toString(), { flag: 'wx' })
+        lockAcquired = true
+      } catch (error) {
+        if (error.code === 'EEXIST') {
+          // Lock exists, wait and retry
+          await new Promise(resolve => setTimeout(resolve, 100))
+          retries++
+        } else {
+          throw error
+        }
+      }
+    }
+
+    if (!lockAcquired) {
+      console.error(`Failed to acquire lock for profile ${profile.userId}`)
+      return false
+    }
+
     try {
       profile.lastUpdated = new Date().toISOString()
-      const profilePath = this.getProfilePath(profile.userId)
-      await fs.writeFile(profilePath, JSON.stringify(profile, null, 2))
+
+      // Convert Set to Array for JSON serialization
+      const profileToSave = {
+        ...profile,
+        vocabulary: Array.from(profile.vocabulary || [])
+      }
+
+      // Write to temp file first
+      await fs.writeFile(tempPath, JSON.stringify(profileToSave, null, 2))
+
+      // Atomic rename (prevents partial writes)
+      await fs.rename(tempPath, profilePath)
+
       return true
     } catch (error) {
       console.error(`Failed to save profile for user ${profile.userId}:`, error)
+      // Clean up temp file if it exists
+      try {
+        await fs.unlink(tempPath)
+      } catch (e) {
+        // Ignore cleanup errors
+      }
       return false
+    } finally {
+      // Always release lock
+      try {
+        await fs.unlink(lockPath)
+      } catch (e) {
+        // Ignore if lock already removed
+      }
     }
   }
 
@@ -107,7 +199,7 @@ class PreferenceService {
   }
 
   /**
-   * Update user preferences based on swipe action
+   * Update user preferences based on swipe action using Naive Bayes approach
    * @param {string} userId - User identifier
    * @param {Array} tokens - Email tokens from Cerebras
    * @param {string} action - 'right' (interested) or 'left' (not interested)
@@ -121,17 +213,29 @@ class PreferenceService {
     try {
       const profile = await this.loadProfile(userId)
 
-      // Update preferences for each token
+      const isGoodSwipe = action === 'right' || action === 'interested'
+
+      // Update global token counts
+      if (isGoodSwipe) {
+        profile.totalGood += tokens.length
+      } else {
+        profile.totalBad += tokens.length
+      }
+
+      // Update per-token counts and vocabulary
       tokens.forEach(token => {
         if (!profile.preferences[token]) {
-          profile.preferences[token] = { right: 0, left: 0 }
+          profile.preferences[token] = { good: 0, bad: 0 }
         }
 
-        if (action === 'right' || action === 'interested') {
-          profile.preferences[token].right += 1
-        } else if (action === 'left' || action === 'not_interested') {
-          profile.preferences[token].left += 1
+        if (isGoodSwipe) {
+          profile.preferences[token].good += 1
+        } else {
+          profile.preferences[token].bad += 1
         }
+
+        // Add to vocabulary
+        profile.vocabulary.add(token)
       })
 
       profile.emailsProcessed += 1
@@ -139,8 +243,12 @@ class PreferenceService {
       await this.saveProfile(profile)
 
       console.log(`Updated preferences for user ${userId}:`, {
-        tokens,
-        action,
+        tokens: tokens.slice(0, 5), // Show only first 5 tokens to avoid spam
+        tokenCount: tokens.length,
+        action: isGoodSwipe ? 'good' : 'bad',
+        totalGood: profile.totalGood,
+        totalBad: profile.totalBad,
+        vocabularySize: profile.vocabulary.size,
         totalEmails: profile.emailsProcessed
       })
 
@@ -152,65 +260,70 @@ class PreferenceService {
   }
 
   /**
-   * Calculate preference score for a token using Laplace smoothing
-   * @param {Object} tokenData - { right: number, left: number }
-   * @returns {number} - Preference score (0 to 1)
+   * Calculate log-odds score for a token using Laplace smoothing
+   * @param {Object} tokenData - { good: number, bad: number }
+   * @param {number} totalGood - Total tokens from all good emails
+   * @param {number} totalBad - Total tokens from all bad emails
+   * @param {number} vocabularySize - Total unique tokens seen
+   * @returns {number} - Log-odds score
    */
-  calculateTokenScore(tokenData) {
-    if (!tokenData) return 0.5 // Default for unknown tokens
+  calculateTokenLogOdds(tokenData, totalGood, totalBad, vocabularySize) {
+    const alpha = 1 // Laplace smoothing parameter
 
-    const positiveCount = tokenData.right || 0
-    const totalCount = (tokenData.right || 0) + (tokenData.left || 0)
+    const goodCount = (tokenData && tokenData.good) || 0
+    const badCount = (tokenData && tokenData.bad) || 0
 
-    // Laplace smoothing: (positive_count + 1) / (total_count + 2)
-    return (positiveCount + 1) / (totalCount + 2)
+    // Smoothed probabilities using Laplace smoothing
+    const pGood = (goodCount + alpha) / (totalGood + alpha * vocabularySize)
+    const pBad = (badCount + alpha) / (totalBad + alpha * vocabularySize)
+
+    // Log-odds: log(P(token|good) / P(token|bad))
+    return Math.log(pGood / pBad)
   }
 
   /**
-   * Calculate email preference score
+   * Calculate email preference score using Naive Bayes with log-odds
    * @param {string} userId - User identifier
    * @param {Array} tokens - Email tokens
-   * @param {Object} email - Email object with internalDate for recency factor
-   * @returns {Promise<number>} - Email preference score (0 to 1)
+   * @param {Object} email - Email object (not used in this scoring method)
+   * @returns {Promise<number>} - Email preference score (0 to 100)
    */
   async calculateEmailScore(userId, tokens, email = null) {
-    if (!tokens || tokens.length === 0) return 0.5 // Neutral score for no tokens
+    if (!tokens || tokens.length === 0) return 50 // Neutral score for no tokens
 
     try {
       const profile = await this.loadProfile(userId)
-      let tokenScoreSum = 0
-      let validTokens = 0
 
-      // Calculate average of token preference scores
-      tokens.forEach(token => {
-        const tokenData = profile.preferences[token]
-        const tokenScore = this.calculateTokenScore(tokenData) // Returns 0.5 for unknown tokens
-        tokenScoreSum += tokenScore
-        validTokens++
-      })
-
-      // Average token score (0 to 1)
-      const averageTokenScore = validTokens > 0 ? tokenScoreSum / validTokens : 0.5
-
-      // Calculate recency factor if email has date information
-      let recencyFactor = 0.5 // Default neutral recency
-      if (email && email.internalDate) {
-        const emailDate = parseInt(email.internalDate)
-        const now = Date.now()
-        const ageInDays = (now - emailDate) / (1000 * 60 * 60 * 24)
-
-        // Recency factor: newer emails get higher scores (0 to 1)
-        // Exponential decay with half-life of 7 days
-        recencyFactor = Math.exp(-ageInDays / 10) // Decays to ~0.37 after 10 days
+      // Handle case where user has no preferences yet
+      if (profile.totalGood === 0 && profile.totalBad === 0) {
+        return 50 // Neutral score
       }
 
-      // Blend token score (80%) with recency factor (20%)
-      const finalScore = (0.8 * averageTokenScore) + (0.2 * recencyFactor)
+      const vocabularySize = profile.vocabulary.size
+      let rawScore = 0
 
-      return finalScore
+      // Sum log-odds scores for all tokens in the email
+      tokens.forEach(token => {
+        const tokenData = profile.preferences[token]
+        const logOdds = this.calculateTokenLogOdds(
+          tokenData,
+          profile.totalGood,
+          profile.totalBad,
+          vocabularySize
+        )
+        rawScore += logOdds
+      })
+
+      // Convert to probability using sigmoid function
+      const probability = 1 / (1 + Math.exp(-rawScore))
+
+      // Convert to 0-100 scale
+      const finalScore = Math.round(probability * 100)
+
+      return Math.max(0, Math.min(100, finalScore))
     } catch (error) {
       console.error('Failed to calculate email score:', error)
-      return 0.5
+      return 50
     }
   }
 
@@ -231,9 +344,8 @@ class PreferenceService {
           const score = await this.calculateEmailScore(userId, tokens, email)
           return {
             ...email,
-            _preferenceScore: score,
-            // Convert 0-1 score to 0-100 for display (50 = neutral baseline)
-            _preferenceScorePercent: Math.round(score * 100),
+            _preferenceScore: score / 100, // Normalize back to 0-1 for internal use
+            _preferenceScorePercent: score, // Keep as 0-100 for display
             _tokens: tokens
           }
         })
@@ -279,13 +391,18 @@ class PreferenceService {
       }
 
       const preferences = profile.preferences
-      const tokenScores = Object.entries(preferences).map(([token, data]) => ({
-        token,
-        score: this.calculateTokenScore(data),
-        total: data.right + data.left,
-        right: data.right,
-        left: data.left
-      }))
+      const vocabularySize = profile.vocabulary.size
+
+      const tokenScores = Object.entries(preferences).map(([token, data]) => {
+        const logOdds = this.calculateTokenLogOdds(data, profile.totalGood, profile.totalBad, vocabularySize)
+        return {
+          token,
+          score: logOdds, // Log-odds score
+          total: data.good + data.bad,
+          good: data.good,
+          bad: data.bad
+        }
+      })
 
       // Sort by absolute score and confidence (total interactions)
       tokenScores.sort((a, b) => {
@@ -295,12 +412,12 @@ class PreferenceService {
       })
 
       insights.topInterests = tokenScores
-        .filter(t => t.score > 0.2)
+        .filter(t => t.score > 0.5) // Positive log-odds indicate preference for "good"
         .slice(0, 10)
         .map(t => ({ token: t.token, score: t.score, interactions: t.total }))
 
       insights.topDislikes = tokenScores
-        .filter(t => t.score < -0.2)
+        .filter(t => t.score < -0.5) // Negative log-odds indicate preference for "bad"
         .slice(0, 10)
         .map(t => ({ token: t.token, score: t.score, interactions: t.total }))
 
