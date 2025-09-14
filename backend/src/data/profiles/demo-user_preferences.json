@@ -2,183 +2,231 @@
   "userId": "demo-user",
   "preferences": {
     "technology": {
-      "right": 3,
-      "left": 5
+      "good": 3,
+      "bad": 5
     },
     "career": {
-      "right": 2,
-      "left": 1
+      "good": 2,
+      "bad": 1
     },
     "business": {
-      "right": 1,
-      "left": 2
+      "good": 1,
+      "bad": 2
     },
     "finance": {
-      "right": 0,
-      "left": 2
+      "good": 0,
+      "bad": 2
     },
     "marketing": {
-      "right": 2,
-      "left": 3
+      "good": 2,
+      "bad": 3
     },
     "newsletter": {
-      "right": 0,
-      "left": 4
+      "good": 0,
+      "bad": 4
     },
     "urgent": {
-      "right": 0,
-      "left": 1
+      "good": 0,
+      "bad": 1
     },
     "announcement": {
-      "right": 1,
-      "left": 2
+      "good": 1,
+      "bad": 2
     },
     "security": {
-      "right": 0,
-      "left": 1
+      "good": 0,
+      "bad": 1
     },
     "informational": {
-      "right": 4,
-      "left": 6
+      "good": 4,
+      "bad": 6
     },
     "education": {
-      "right": 0,
-      "left": 1
+      "good": 0,
+      "bad": 1
     },
     "awareness": {
-      "right": 0,
-      "left": 1
+      "good": 0,
+      "bad": 1
     },
     "professional_development": {
-      "right": 0,
-      "left": 1
+      "good": 0,
+      "bad": 1
     },
     "online_safety": {
-      "right": 0,
-      "left": 1
+      "good": 0,
+      "bad": 1
     },
     "cybersecurity": {
-      "right": 0,
-      "left": 1
+      "good": 0,
+      "bad": 1
     },
     "promotion": {
-      "right": 3,
-      "left": 3
+      "good": 3,
+      "bad": 3
     },
     "productivity": {
-      "right": 1,
-      "left": 3
+      "good": 1,
+      "bad": 3
     },
     "industry": {
-      "right": 1,
-      "left": 1
+      "good": 1,
+      "bad": 1
     },
     "limited_time_offer": {
-      "right": 1,
-      "left": 1
+      "good": 1,
+      "bad": 1
     },
     "sales_pitch": {
-      "right": 3,
-      "left": 3
+      "good": 3,
+      "bad": 3
     },
     "digital_products": {
-      "right": 1,
-      "left": 1
+      "good": 1,
+      "bad": 1
     },
     "apologetic": {
-      "right": 0,
-      "left": 1
+      "good": 0,
+      "bad": 1
     },
     "email_design": {
-      "right": 0,
-      "left": 1
+      "good": 0,
+      "bad": 1
     },
     "web_development": {
-      "right": 0,
-      "left": 1
+      "good": 0,
+      "bad": 1
     },
     "customer_communication": {
-      "right": 0,
-      "left": 1
+      "good": 0,
+      "bad": 1
     },
     "money": {
-      "right": 0,
-      "left": 1
+      "good": 0,
+      "bad": 1
     },
     "email marketing": {
-      "right": 0,
-      "left": 1
+      "good": 0,
+      "bad": 1
     },
     "digital marketing": {
-      "right": 0,
-      "left": 1
+      "good": 0,
+      "bad": 1
     },
     "online rewards": {
-      "right": 0,
-      "left": 1
+      "good": 0,
+      "bad": 1
     },
     "entertainment": {
-      "right": 2,
-      "left": 1
+      "good": 2,
+      "bad": 1
     },
     "product": {
-      "right": 1,
-      "left": 0
+      "good": 1,
+      "bad": 0
     },
     "gaming": {
-      "right": 1,
-      "left": 0
+      "good": 1,
+      "bad": 0
     },
     "digital": {
-      "right": 1,
-      "left": 1
+      "good": 1,
+      "bad": 1
     },
     "games": {
-      "right": 1,
-      "left": 1
+      "good": 1,
+      "bad": 1
     },
     "digital_media": {
-      "right": 1,
-      "left": 1
+      "good": 1,
+      "bad": 1
     },
     "leisure": {
-      "right": 1,
-      "left": 1
+      "good": 1,
+      "bad": 1
     },
     "professional": {
-      "right": 1,
-      "left": 0
+      "good": 1,
+      "bad": 0
     },
     "email": {
-      "right": 1,
-      "left": 0
+      "good": 1,
+      "bad": 0
     },
     "unknown": {
-      "right": 1,
-      "left": 0
+      "good": 1,
+      "bad": 0
     },
     "shocked_and_shattered": {
-      "right": 1,
-      "left": 0
+      "good": 1,
+      "bad": 0
     },
     "celebratory": {
-      "right": 0,
-      "left": 1
+      "good": 0,
+      "bad": 1
     },
     "self-improvement": {
-      "right": 0,
-      "left": 1
+      "good": 0,
+      "bad": 1
     },
     "motivational": {
-      "right": 0,
-      "left": 1
+      "good": 0,
+      "bad": 1
     },
     "online": {
-      "right": 0,
-      "left": 1
+      "good": 0,
+      "bad": 1
     }
   },
+  "totalGood": 35,
+  "totalBad": 61,
+  "vocabulary": [
+    "technology",
+    "career",
+    "business",
+    "finance",
+    "marketing",
+    "newsletter",
+    "urgent",
+    "announcement",
+    "security",
+    "informational",
+    "education",
+    "awareness",
+    "professional_development",
+    "online_safety",
+    "cybersecurity",
+    "promotion",
+    "productivity",
+    "industry",
+    "limited_time_offer",
+    "sales_pitch",
+    "digital_products",
+    "apologetic",
+    "email_design",
+    "web_development",
+    "customer_communication",
+    "money",
+    "email marketing",
+    "digital marketing",
+    "online rewards",
+    "entertainment",
+    "product",
+    "gaming",
+    "digital",
+    "games",
+    "digital_media",
+    "leisure",
+    "professional",
+    "email",
+    "unknown",
+    "shocked_and_shattered",
+    "celebratory",
+    "self-improvement",
+    "motivational",
+    "online"
+  ],
   "emailsProcessed": 15,
-  "lastUpdated": "2025-09-14T12:38:53.206Z",
-  "version": "1.0"
+  "lastUpdated": "2025-09-14T13:30:37.458Z",
+  "version": "2.0"
 }

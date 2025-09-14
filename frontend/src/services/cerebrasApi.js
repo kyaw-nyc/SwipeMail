@@ -9,6 +9,11 @@ class CerebrasAPI {
     this.baseUrl = import.meta.env.VITE_CEREBRAS_API_URL || 'https://api.cerebras.ai/v1'
     this.model = 'llama-3.3-70b' // Using the latest Llama model for better analysis
 
+    // Simple client-side rate limiting to avoid 429s
+    this.maxConcurrent = 2
+    this.inflight = 0
+    this.queue = []
+
     // Debug logging
     console.log('Cerebras API initialized:', {
       hasApiKey: !!this.apiKey,
@@ -18,6 +23,23 @@ class CerebrasAPI {
     })
   }
 
+  // Acquire a slot for making a request
+  async acquireSlot() {
+    if (this.inflight < this.maxConcurrent) {
+      this.inflight += 1
+      return
+    }
+    await new Promise(resolve => this.queue.push(resolve))
+    this.inflight += 1
+  }
+
+  // Release a slot and schedule next
+  releaseSlot() {
+    this.inflight = Math.max(0, this.inflight - 1)
+    const next = this.queue.shift()
+    if (next) next()
+  }
+
   /**
    * Make a request to Cerebras API
    * @param {string} endpoint - API endpoint
@@ -25,25 +47,68 @@ class CerebrasAPI {
    * @returns {Promise<Object>} API response
    */
   async makeRequest(endpoint, data) {
+    await this.acquireSlot()
     try {
-      const response = await fetch(`${this.baseUrl}${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json',
-          'User-Agent': 'SwipeMail/1.0',
-        },
-        body: JSON.stringify(data)
-      })
+      const url = `${this.baseUrl}${endpoint}`
+      const maxRetries = 4
+      let attempt = 0
+      let lastError
 
-      if (!response.ok) {
-        throw new Error(`Cerebras API error: ${response.status} ${response.statusText}`)
+      while (attempt <= maxRetries) {
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${this.apiKey}`,
+              'Content-Type': 'application/json',
+              'User-Agent': 'SwipeMail/1.0',
+            },
+            body: JSON.stringify(data)
+          })
+
+          if (response.ok) {
+            return await response.json()
+          }
+
+          // Retry on 429 or 5xx
+          const status = response.status
+          const text = await response.text().catch(() => '')
+          const retryAfter = response.headers?.get?.('retry-after')
+          const retryAfterMs = retryAfter ? (isNaN(Number(retryAfter)) ? 0 : Number(retryAfter) * 1000) : 0
+
+          if (status === 429 || (status >= 500 && status < 600)) {
+            if (attempt < maxRetries) {
+              const backoff = retryAfterMs || Math.min(16000, 1000 * Math.pow(2, attempt))
+              const jitter = Math.floor(Math.random() * 200)
+              console.warn(`Cerebras API ${status}. Retrying in ${backoff + jitter}ms (attempt ${attempt + 1}/${maxRetries})`)
+              await new Promise(r => setTimeout(r, backoff + jitter))
+              attempt += 1
+              continue
+            }
+          }
+
+          // Non-retriable or retries exhausted
+          const err = new Error(text || `Cerebras API error: ${status} ${response.statusText}`)
+          err.status = status
+          throw err
+        } catch (err) {
+          lastError = err
+          // Network errors: backoff and retry
+          if (!err.status && attempt < maxRetries) {
+            const backoff = Math.min(16000, 1000 * Math.pow(2, attempt))
+            const jitter = Math.floor(Math.random() * 200)
+            console.warn(`Cerebras API network error. Retrying in ${backoff + jitter}ms (attempt ${attempt + 1}/${maxRetries})`)
+            await new Promise(r => setTimeout(r, backoff + jitter))
+            attempt += 1
+            continue
+          }
+          throw err
+        }
       }
 
-      return await response.json()
-    } catch (error) {
-      console.error('Cerebras API request failed:', error)
-      throw error
+      throw lastError || new Error('Cerebras API request failed')
+    } finally {
+      this.releaseSlot()
     }
   }
 

@@ -14,6 +14,27 @@ app.use(cors())
 app.use(express.json({ limit: '50mb' })) // Increase limit for email content
 app.use(express.urlencoded({ limit: '50mb', extended: true }))
 
+// Root landing route
+app.get('/', (req, res) => {
+  res.json({
+    service: 'SwipeMail Backend API',
+    status: 'ok',
+    endpoints: {
+      health: '/health',
+      mockEmails: '/api/mock',
+      config: '/api/config',
+      ml: {
+        extractTokens: '/api/ml/extract-tokens',
+        updatePreferences: '/api/ml/update-preferences',
+        getProfile: '/api/ml/profile/:userId',
+        scoreEmail: '/api/ml/score-email',
+        rankEmails: '/api/ml/rank-emails',
+        test: '/api/ml/test'
+      }
+    }
+  })
+})
+
 // Sample email data for mock mode
 const mockEmails = [
   {
@@ -226,15 +247,35 @@ app.post('/api/ml/rank-emails', async (req, res) => {
 
     console.log(`🧠 Ranking ${emails.length} emails for stream type: ${streamType}`)
 
-    // Extract tokens for emails that don't have them
-    const emailsWithTokens = await Promise.all(
-      emails.map(async (email) => {
-        if (!email._tokens) {
-          email._tokens = await preferenceService.processEmailTokens(userId, email)
+    // Extract tokens for emails that don't have them, with limited concurrency to avoid 429s
+    const concurrency = 2
+    const queue = [...emails]
+    const emailsWithTokens = []
+    let active = 0
+    await new Promise((resolve, reject) => {
+      const next = () => {
+        if (queue.length === 0 && active === 0) return resolve()
+        while (active < concurrency && queue.length) {
+          const email = queue.shift()
+          active += 1
+          ;(async () => {
+            try {
+              if (!email._tokens) {
+                email._tokens = await preferenceService.processEmailTokens(userId, email)
+              }
+              emailsWithTokens.push(email)
+            } catch (e) {
+              console.error('Token extraction failed:', e)
+              emailsWithTokens.push(email)
+            } finally {
+              active -= 1
+              next()
+            }
+          })()
         }
-        return email
-      })
-    )
+      }
+      next()
+    })
 
     const rankedEmails = await preferenceService.rankEmails(userId, emailsWithTokens, streamType)
 
@@ -303,7 +344,7 @@ app.get('/api/config', (req, res) => {
       mlLearning: true, // Machine learning preference system enabled
     },
     limits: {
-      maxEmailsPerRequest: 50,
+      maxEmailsPerRequest: 30,
       maxFileSize: '10MB'
     },
     ml: {

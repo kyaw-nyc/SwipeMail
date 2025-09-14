@@ -39,27 +39,49 @@ Email Content: ${cleanBody}
 
 Return only a JSON array of strings, no other text. Example: ["technology", "newsletter", "career", "informational"]`
 
-      const response = await axios.post(
-        `${this.baseURL}/chat/completions`,
-        {
-          model: 'llama3.1-8b',
-          messages: [
+      // Retry with exponential backoff on 429/5xx
+      const maxRetries = 4
+      let attempt = 0
+      let response
+      while (attempt <= maxRetries) {
+        try {
+          response = await axios.post(
+            `${this.baseURL}/chat/completions`,
             {
-              role: 'user',
-              content: prompt
+              model: 'llama3.1-8b',
+              messages: [
+                {
+                  role: 'user',
+                  content: prompt
+                }
+              ],
+              temperature: 0.3,
+              max_tokens: 150
+            },
+            {
+              headers: {
+                'Authorization': `Bearer ${this.apiKey}`,
+                'Content-Type': 'application/json'
+              },
+              timeout: 20000
             }
-          ],
-          temperature: 0.3,
-          max_tokens: 150
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${this.apiKey}`,
-            'Content-Type': 'application/json'
-          },
-          timeout: 10000
+          )
+          break // success
+        } catch (err) {
+          const status = err?.response?.status
+          const retryAfter = err?.response?.headers?.['retry-after']
+          const retryAfterMs = retryAfter && !isNaN(Number(retryAfter)) ? Number(retryAfter) * 1000 : 0
+          if (status === 429 || (status >= 500 && status < 600)) {
+            if (attempt < maxRetries) {
+              const backoff = retryAfterMs || Math.min(16000, 1000 * Math.pow(2, attempt))
+              await new Promise(r => setTimeout(r, backoff))
+              attempt += 1
+              continue
+            }
+          }
+          throw err
         }
-      )
+      }
 
       const content = response.data.choices[0]?.message?.content?.trim()
       if (!content) {

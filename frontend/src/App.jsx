@@ -11,6 +11,9 @@ import EventConfirmModal from './components/EventConfirmModal'
 import mlService from './services/mlService'
 import './App.css'
 
+// Global cap for how many emails to fetch per load
+const MAX_EMAILS_TO_FETCH = 30
+
 function App() {
   const [user, setUser] = useState(null)
   const [accessToken, setAccessToken] = useState(null)
@@ -333,6 +336,9 @@ function App() {
       }
       // Use existing extraction result, or run once
       let result = eventAnalysis[email.id]?.result
+      // Capture source text to detect if year was present in the email
+      const rawBody = (email.body && typeof email.body === 'string' ? email.body.replace(/<[^>]+>/g, ' ') : email.snippet || '')
+      const sourceHasYear = /\b\d{4}\b/.test(`${email.subject || ''} ${email.from || ''} ${rawBody}`)
       if (!result) {
         const forAi = {
           subject: email.subject || '',
@@ -354,6 +360,11 @@ function App() {
         if (!s) return null
         const DEFAULT_YEAR = 2025
         let str = String(s).trim()
+        // Normalize common noise and ordinal suffixes
+        str = str
+          .replace(/\b(\d{1,2})(st|nd|rd|th)\b/gi, '$1') // 1st -> 1
+          .replace(/\s+at\s+/i, ' ') // "Oct 1 at 3pm" -> "Oct 1 3pm"
+          .replace(/,@?\s*/g, ', ') // normalize commas
 
         // If ISO date-only (yyyy-mm-dd), assume 9am local
         const isoDateOnly = /^(\d{4})-(\d{2})-(\d{2})$/
@@ -361,26 +372,38 @@ function App() {
           return new Date(`${str}T09:00:00`)
         }
 
-        // MM/DD or MM/DD/YYYY (default year -> 2025)
-        let m = str.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/)
+        // MM/DD[/(YYYY)] [time]
+        let m = str.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?(?:\s+(.+))?$/)
         if (m) {
           const mm = String(m[1]).padStart(2, '0')
           const dd = String(m[2]).padStart(2, '0')
           let yyyy = m[3]
+          const tail = (m[4] || '').trim()
           if (!yyyy) yyyy = String(DEFAULT_YEAR)
           else if (yyyy.length === 2) yyyy = `20${yyyy}`
-          return new Date(`${yyyy}-${mm}-${dd}T09:00:00`)
+          const base = `${yyyy}-${mm}-${dd}`
+          if (tail) {
+            const d = new Date(`${base} ${tail}`)
+            if (!isNaN(d.getTime())) return d
+          }
+          return new Date(`${base}T09:00:00`)
         }
 
-        // MM-DD or MM-DD-YYYY (default year -> 2025)
-        m = str.match(/^(\d{1,2})-(\d{1,2})(?:-(\d{2,4}))?$/)
+        // MM-DD[[-]YYYY] [time]
+        m = str.match(/^(\d{1,2})-(\d{1,2})(?:-(\d{2,4}))?(?:\s+(.+))?$/)
         if (m) {
           const mm = String(m[1]).padStart(2, '0')
           const dd = String(m[2]).padStart(2, '0')
           let yyyy = m[3]
+          const tail = (m[4] || '').trim()
           if (!yyyy) yyyy = String(DEFAULT_YEAR)
           else if (yyyy.length === 2) yyyy = `20${yyyy}`
-          return new Date(`${yyyy}-${mm}-${dd}T09:00:00`)
+          const base = `${yyyy}-${mm}-${dd}`
+          if (tail) {
+            const d = new Date(`${base} ${tail}`)
+            if (!isNaN(d.getTime())) return d
+          }
+          return new Date(`${base}T09:00:00`)
         }
 
         // Month Name D[, YYYY][ time]
@@ -394,18 +417,29 @@ function App() {
           if (!isNaN(d.getTime())) return d
         }
 
-        // If string contains month name but no 4-digit year, append default year
-        if (!/\b\d{4}\b/.test(str) && /[A-Za-z]{3,9}/.test(str)) {
-          const d = new Date(`${str} ${DEFAULT_YEAR}`)
-          if (!isNaN(d.getTime())) return d
+        // If no 4-digit year present, append default year and try parse
+        if (!/\b\d{4}\b/.test(str)) {
+          const withDefaultYear = new Date(`${str} ${DEFAULT_YEAR}`)
+          if (!isNaN(withDefaultYear.getTime())) return withDefaultYear
         }
 
-        // Fallback: try native parse
+        // Fallback: try native parse (for fully specified strings)
         const d = new Date(str)
         return isNaN(d.getTime()) ? null : d
       }
       let startDt = parseToDateTime(result?.start_time) || new Date()
       let endDt = parseToDateTime(result?.end_time) || new Date(startDt.getTime() + 60 * 60 * 1000)
+
+      // If the source email text had no explicit year but the AI injected a different year (e.g., 2023), force default
+      const DEFAULT_YEAR = 2025
+      if (!sourceHasYear) {
+        if (startDt && startDt.getFullYear() !== DEFAULT_YEAR) {
+          startDt = new Date(DEFAULT_YEAR, startDt.getMonth(), startDt.getDate(), startDt.getHours(), startDt.getMinutes(), startDt.getSeconds(), startDt.getMilliseconds())
+        }
+        if (endDt && endDt.getFullYear() !== DEFAULT_YEAR) {
+          endDt = new Date(DEFAULT_YEAR, endDt.getMonth(), endDt.getDate(), endDt.getHours(), endDt.getMinutes(), endDt.getSeconds(), endDt.getMilliseconds())
+        }
+      }
       const draft = {
         summary: title,
         description: desc,
@@ -421,22 +455,37 @@ function App() {
     }
   }
 
-  const ensureCalendarToken = (hintEmail) => new Promise((resolve) => {
+  const ensureCalendarToken = (hintEmail, forceConsent = false) => new Promise((resolve) => {
     try {
       if (!window.google?.accounts?.oauth2) return resolve(accessToken)
-      const client = window.google.accounts.oauth2.initTokenClient({
-        client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
-        scope: 'https://www.googleapis.com/auth/calendar.events',
-        include_granted_scopes: true,
-        prompt: '',
-        hint: hintEmail || undefined,
-        callback: (tokenResponse) => {
-          if (tokenResponse?.access_token) return resolve(tokenResponse.access_token)
-          resolve(accessToken)
-        },
-        error_callback: () => resolve(accessToken),
-      })
-      client.requestAccessToken()
+
+      const requestToken = (prompt) => {
+        const client = window.google.accounts.oauth2.initTokenClient({
+          client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+          scope: 'https://www.googleapis.com/auth/calendar.events',
+          include_granted_scopes: true,
+          prompt,
+          hint: hintEmail || undefined,
+          callback: (tokenResponse) => {
+            if (tokenResponse?.access_token) return resolve(tokenResponse.access_token)
+            // Fall back to app token if we didn't get one
+            resolve(accessToken)
+          },
+          error_callback: () => {
+            // On error, if we haven't prompted yet, try consent once
+            if (!forceConsent && prompt !== 'consent') {
+              requestToken('consent')
+            } else {
+              resolve(accessToken)
+            }
+          },
+        })
+        client.requestAccessToken()
+      }
+
+      // Try silent first, then consent if requested or if silent fails
+      if (forceConsent) requestToken('consent')
+      else requestToken('')
     } catch {
       resolve(accessToken)
     }
@@ -445,8 +494,20 @@ function App() {
   const handleConfirmCreateEvent = async (draft) => {
     try {
       setEventSubmitting(true)
-      const calToken = await ensureCalendarToken(user?.email)
-      const created = await createCalendarEvent(calToken, draft)
+      // Try with existing/silent token first
+      let calToken = await ensureCalendarToken(user?.email)
+      let created
+      try {
+        created = await createCalendarEvent(calToken, draft)
+      } catch (err) {
+        // If insufficient scope or auth error, force a consent prompt and retry once
+        if (err?.status === 401 || err?.status === 403) {
+          calToken = await ensureCalendarToken(user?.email, true)
+          created = await createCalendarEvent(calToken, draft)
+        } else {
+          throw err
+        }
+      }
       console.log('[Calendar] Event created:', created)
       setEventSubmitting(false)
       setEventModalOpen(false)
@@ -693,7 +754,7 @@ function App() {
   }
 
   // Paginated fetch for Gmail message ids for a query
-  const fetchAllMessageIdsByQuery = async (q, max = 500) => {
+  const fetchAllMessageIdsByQuery = async (q, max = MAX_EMAILS_TO_FETCH) => {
     const results = []
     let pageToken = undefined
     while (results.length < max) {
@@ -720,7 +781,7 @@ function App() {
     setLoading(true)
     try {
       console.log('📥 Loading master unread cache (all unread emails)...')
-      const ids = await fetchAllMessageIdsByQuery('in:inbox is:unread', 500)
+      const ids = await fetchAllMessageIdsByQuery('in:inbox is:unread', MAX_EMAILS_TO_FETCH)
       if (!ids.length) {
         setMasterUnreadEmails([])
         return []
@@ -901,7 +962,7 @@ function App() {
       }
 
       console.log(`📧 Fetching emails with query (NO TIME FILTER): "${query}"`)
-      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=500&q=${encodeURIComponent(query)}`
+      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${MAX_EMAILS_TO_FETCH}&q=${encodeURIComponent(query)}`
       console.log(`🌐 Request URL: ${url}`)
 
       // Fetch messages from Gmail API
@@ -958,7 +1019,7 @@ function App() {
 
       const queryWithTimeRange = buildQueryWithTimeRange(query, daysOverride)
       console.log(`📧 Fetching emails with query (paginated): "${queryWithTimeRange}"`)
-      const ids = await fetchAllMessageIdsByQuery(queryWithTimeRange, 500)
+      const ids = await fetchAllMessageIdsByQuery(queryWithTimeRange, MAX_EMAILS_TO_FETCH)
       if (!ids.length) return []
       const result = await processEmailDetails(ids)
       console.log(`🎯 Processed ${result.length} emails for query "${query}"`)
@@ -981,7 +1042,7 @@ function App() {
       // Use Gmail API messages endpoint with labelIds parameter
       const results = []
       let pageToken = undefined
-      const maxResults = 500
+      const maxResults = MAX_EMAILS_TO_FETCH
 
       while (results.length < maxResults) {
         const url = new URL('https://gmail.googleapis.com/gmail/v1/users/me/messages')
