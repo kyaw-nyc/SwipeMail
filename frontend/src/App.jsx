@@ -12,8 +12,16 @@ function App() {
   const [emails, setEmails] = useState([])
   const [loading, setLoading] = useState(false)
   const [checkingAuth, setCheckingAuth] = useState(true)
-  const [currentFolder, setCurrentFolder] = useState('INBOX')
+  const [currentFolder, setCurrentFolder] = useState('STREAM')
   const [availableFolders, setAvailableFolders] = useState([])
+  const [currentStream, setCurrentStream] = useState({
+    id: 'unread',
+    name: 'Unread Emails',
+    description: 'Only unread emails from inbox',
+    icon: '📬',
+    query: 'is:unread'
+  })
+  const [remainingCount, setRemainingCount] = useState(0)
 
   // Initialize Cerebras analysis hook
   const { analyzeEmail, isAnalyzing } = useCerebrasAnalysis()
@@ -161,6 +169,15 @@ function App() {
     console.log('Session cleared from cookies')
   }
 
+  const handleStreamChange = (stream) => {
+    console.log('Stream changed to:', stream.name)
+    setCurrentStream(stream)
+    // Only refetch emails if we're currently viewing STREAM
+    if (currentFolder === 'STREAM') {
+      fetchEmails('STREAM')
+    }
+  }
+
   // Function to clean and sanitize text content
   const cleanTextContent = (text) => {
     if (!text) return text
@@ -259,20 +276,13 @@ function App() {
 
         console.log(`Fetching emails from Gmail API for folder: ${folderId}...`)
 
-        // Build query based on folder
+        // Build query based on folder and stream
         let query = 'maxResults=20'
-        if (folderId === 'INBOX') {
-          query += '&q=is:unread'
-        } else if (folderId === 'STARRED') {
-          query += '&q=is:starred'
-        } else if (folderId === 'SENT') {
-          query += '&q=in:sent'
-        } else if (folderId === 'DRAFT') {
-          query += '&q=in:drafts'
-        } else if (folderId === 'TRASH') {
-          query += '&q=in:trash'
+        if (folderId === 'STREAM') {
+          // Use current stream query
+          query += `&q=${currentStream.query}`
         } else {
-          // For custom labels (like SwipeMail folders)
+          // For SwipeMail AI folders (custom labels)
           query += `&labelIds=${folderId}`
         }
 
@@ -681,13 +691,14 @@ function App() {
   const handleFolderChange = (folderId) => {
     setCurrentFolder(folderId)
     setEmails([])
+
     fetchEmails(folderId)
   }
 
   useEffect(() => {
     if (user && accessToken) {
       fetchFolders()
-      fetchEmails()
+      fetchEmails('STREAM') // Start with stream view
     }
   }, [user, accessToken])
 
@@ -729,6 +740,8 @@ function App() {
               folders={availableFolders}
               currentFolder={currentFolder}
               onFolderChange={handleFolderChange}
+              currentStream={currentStream}
+              onStreamChange={handleStreamChange}
             />
             <div className="email-section">
               {loading ? (
@@ -740,6 +753,11 @@ function App() {
                       <span>🧠 AI analyzing emails...</span>
                     </div>
                   )}
+                  <div className="email-section-header">
+                    <div className="remaining-count">
+                      {remainingCount} remaining
+                    </div>
+                  </div>
                   <EmailStack
                     emails={emails}
                     currentFolder={currentFolder}
@@ -747,6 +765,7 @@ function App() {
                     onApplyLabel={applyLabel}
                     onAnalyzeAndSort={analyzeAndSortEmail}
                     onFlagIncorrect={flagIncorrectSorting}
+                    onRemainingCountChange={setRemainingCount}
                   />
                 </>
               )}

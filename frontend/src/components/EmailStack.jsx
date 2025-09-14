@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import SwipeableEmailCard from './SwipeableEmailCard'
 
-function EmailStack({ emails, currentFolder, onMarkRead, onApplyLabel, onAnalyzeAndSort, onFlagIncorrect }) {
+function EmailStack({ emails, currentFolder, onMarkRead, onApplyLabel, onAnalyzeAndSort, onFlagIncorrect, onRemainingCountChange }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [processedEmails, setProcessedEmails] = useState([])
   const [swipingCards, setSwipingCards] = useState(new Set())
@@ -12,11 +12,17 @@ function EmailStack({ emails, currentFolder, onMarkRead, onApplyLabel, onAnalyze
     setSwipingCards(new Set())
   }, [emails])
 
+  useEffect(() => {
+    if (onRemainingCountChange) {
+      onRemainingCountChange(getRemainingCount())
+    }
+  }, [currentIndex, emails.length, onRemainingCountChange])
+
   const handleSwipe = (email, direction) => {
     // Prevent multiple swipes on the same card
     if (swipingCards.has(email.id)) return
 
-    const isInbox = currentFolder === 'INBOX'
+    const isStream = currentFolder === 'STREAM'
     const isSwipeMailFolder = typeof currentFolder === 'string' && currentFolder.includes('SwipeMail/')
 
     console.log(`${direction === 'left' ? 'Not interested' : 'Interested'} in email:`, email.subject)
@@ -31,13 +37,13 @@ function EmailStack({ emails, currentFolder, onMarkRead, onApplyLabel, onAnalyze
         onFlagIncorrect && onFlagIncorrect(email)
         setProcessedEmails(prev => [...prev, { ...email, action: 'flagged_incorrect' }])
       } else {
-        // In inbox, left swipe marks as read
+        // In stream view, left swipe marks as read
         onMarkRead(email.id)
         setProcessedEmails(prev => [...prev, { ...email, action: 'not_interested' }])
       }
     } else {
-      if (isInbox) {
-        // In inbox, right swipe analyzes and sorts
+      if (isStream) {
+        // In stream view, right swipe analyzes and sorts
         if (onAnalyzeAndSort) {
           onAnalyzeAndSort(email)
         } else {
@@ -126,12 +132,6 @@ function EmailStack({ emails, currentFolder, onMarkRead, onApplyLabel, onAnalyze
 
   return (
     <div className="email-stack">
-      <div className="stack-header">
-        <div className="remaining-count">
-          {getRemainingCount()} remaining
-        </div>
-      </div>
-
       <div className="stack-container">
         {visibleEmails.map((email, index) => (
           <SwipeableEmailCard
@@ -147,7 +147,7 @@ function EmailStack({ emails, currentFolder, onMarkRead, onApplyLabel, onAnalyze
       </div>
 
       <div className="stack-instructions">
-        {currentFolder === 'INBOX' ? (
+        {currentFolder === 'STREAM' ? (
           <>
             <p>Swipe right (→) for interested • Swipe left (←) for not interested</p>
             <p>Or use arrow keys</p>

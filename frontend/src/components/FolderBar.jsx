@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
+import StreamSelector from './StreamSelector'
 
-function FolderBar({ folders = [], currentFolder, onFolderChange }) {
+function FolderBar({ folders = [], currentFolder, onFolderChange, currentStream, onStreamChange }) {
   // Map Gmail system labels to user-friendly names
   const getFolderDisplayName = (folder) => {
     const nameMap = {
@@ -24,12 +25,7 @@ function FolderBar({ folders = [], currentFolder, onFolderChange }) {
     onFolderChange(folderId)
   }
 
-  // Separate system and SwipeMail folders
-  const systemFolders = folders.filter(f => f.type === 'system').sort((a, b) => {
-    const order = ['INBOX', 'STARRED', 'SENT', 'DRAFT', 'TRASH']
-    return order.indexOf(a.name) - order.indexOf(b.name)
-  })
-
+  // Only show SwipeMail AI folders
   const swipeMailFolders = folders.filter(f => f.isSwipeMail).sort((a, b) =>
     a.name.localeCompare(b.name)
   )
@@ -40,21 +36,15 @@ function FolderBar({ folders = [], currentFolder, onFolderChange }) {
         <h3>Folders</h3>
       </div>
 
-      <nav className="folder-nav">
-        {/* System Folders */}
-        {systemFolders.map((folder) => (
-          <button
-            key={folder.id}
-            onClick={() => handleFolderClick(folder.id)}
-            className={`folder-item ${currentFolder === folder.id ? 'active' : ''}`}
-          >
-            <span className="folder-name">{getFolderDisplayName(folder)}</span>
-            {folder.messagesUnread > 0 && (
-              <span className="folder-count">{folder.messagesUnread}</span>
-            )}
-          </button>
-        ))}
+      {/* Stream Selector - always show since we removed system folders */}
+      {onStreamChange && (
+        <StreamSelector
+          currentStream={currentStream}
+          onStreamChange={onStreamChange}
+        />
+      )}
 
+      <nav className="folder-nav">
         {/* SwipeMail AI Folders */}
         {swipeMailFolders.length > 0 && (
           <>

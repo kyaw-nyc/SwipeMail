@@ -230,7 +230,7 @@ function SwipeableEmailCard({ email, onSwipeLeft, onSwipeRight, isTopCard = fals
     if (isDragging || (dragOffset.x !== 0 && isTopCard)) {
       // Manual drag styling or scroll feedback
       return {
-        transform: `translate(-50%, -50%) translate(${dragOffset.x}px, ${dragOffset.y}px) rotate(${rotation}deg)`,
+        transform: `translateX(-50%) translate(${dragOffset.x}px, ${dragOffset.y}px) rotate(${rotation}deg)`,
         transition: isDragging ? 'none' : 'transform 0.1s ease-out',
         zIndex: isTopCard ? 10 : Math.max(1, 3 - stackIndex),
         cursor: isDragging ? 'grabbing' : (isTopCard ? 'grab' : 'default')
@@ -239,7 +239,7 @@ function SwipeableEmailCard({ email, onSwipeLeft, onSwipeRight, isTopCard = fals
 
     // Default positioning
     return {
-      transform: `translate(-50%, -50%) translateY(${stackIndex * 4}px) scale(${1 - stackIndex * 0.02})`,
+      transform: `translateX(-50%) translateY(${stackIndex * 4}px) scale(${1 - stackIndex * 0.02})`,
       transition: 'all 0.3s ease-out',
       zIndex: Math.max(1, 3 - stackIndex),
       cursor: isTopCard ? 'grab' : 'default'
