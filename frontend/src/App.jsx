@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Cookies from 'js-cookie'
 import AuthButton from './components/AuthButton'
 import EmailStack from './components/EmailStack'
@@ -25,6 +25,25 @@ function App() {
 
   // Initialize Cerebras analysis hook
   const { analyzeEmail, isAnalyzing } = useCerebrasAnalysis()
+
+  // Cursor-follow glow like SwipeMail package
+  useEffect(() => {
+    const setVars = (x, y) => {
+      const r = document.documentElement
+      r.style.setProperty('--mx', `${x}px`)
+      r.style.setProperty('--my', `${y}px`)
+    }
+    const onMouse = (e) => setVars(e.clientX, e.clientY)
+    const onTouch = (e) => {
+      if (e.touches && e.touches[0]) setVars(e.touches[0].clientX, e.touches[0].clientY)
+    }
+    window.addEventListener('mousemove', onMouse)
+    window.addEventListener('touchmove', onTouch, { passive: true })
+    return () => {
+      window.removeEventListener('mousemove', onMouse)
+      window.removeEventListener('touchmove', onTouch)
+    }
+  }, [])
 
   // Check for existing session on mount
   useEffect(() => {
@@ -158,6 +177,8 @@ function App() {
     console.log('Session saved to cookies')
   }
 
+  const authRef = useRef(null)
+
   const handleLogout = () => {
     setUser(null)
     setAccessToken(null)
@@ -167,6 +188,18 @@ function App() {
     Cookies.remove('swipemail_token')
     Cookies.remove('swipemail_user')
     console.log('Session cleared from cookies')
+  }
+
+  // Trigger the Google sign-in button rendered by AuthButton
+  const triggerGoogleSignIn = () => {
+    if (authRef.current?.signIn) {
+      authRef.current.signIn()
+      return
+    }
+    // Fallback to DOM click if ref not ready
+    const container = document.querySelector('.google-signin-button')
+    const btn = container?.querySelector('div[role="button"], button, div')
+    btn?.click?.()
   }
 
   const handleStreamChange = (stream) => {
@@ -722,16 +755,18 @@ function App() {
 
   return (
     <div className="app">
-      <header className="app-header">
-        <h1>SwipeMail</h1>
-        <div className="header-controls">
-          <AuthButton
-            user={user}
-            onLoginSuccess={handleLoginSuccess}
-            onLogout={handleLogout}
-          />
-        </div>
-      </header>
+      {user && (
+        <header className="app-header">
+          <h1>SwipeMail</h1>
+          <div className="header-controls">
+            <AuthButton
+              user={user}
+              onLoginSuccess={handleLoginSuccess}
+              onLogout={handleLogout}
+            />
+          </div>
+        </header>
+      )}
 
       <main className="app-main">
         {user ? (
@@ -772,7 +807,30 @@ function App() {
             </div>
           </div>
         ) : (
-          <div className="welcome-hero">
+          <>
+            <section className="swipemail-hero">
+              <h1 className="hero-title">SwipeMail</h1>
+              <div className="hero-tag">Turn inbox chaos into calm — one swipe at a time</div>
+              <div className="hero-cta">
+                <button className="btn btn-primary btn-lg hero-login-btn" onClick={triggerGoogleSignIn}>
+                  Sign in with Google
+                </button>
+              </div>
+              <button
+                type="button"
+                className="hero-arrow"
+                onClick={() => {
+                  const el = document.getElementById('hackmit-hero')
+                  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                }}
+                aria-label="Scroll to HackMIT hero"
+                title="See more"
+              >
+                ↓
+              </button>
+            </section>
+
+            <div id="hackmit-hero" className="welcome-hero">
             <div className="welcome-content">
               <div className="welcome-visual">
                 <div className="email-stack-preview">
@@ -848,6 +906,7 @@ function App() {
 
                 <div className="cta-section">
                   <AuthButton
+                    ref={authRef}
                     user={user}
                     onLoginSuccess={handleLoginSuccess}
                     onLogout={handleLogout}
@@ -859,6 +918,7 @@ function App() {
               </div>
             </div>
           </div>
+          </>
         )}
       </main>
     </div>

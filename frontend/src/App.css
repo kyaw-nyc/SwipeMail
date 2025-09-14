@@ -57,6 +57,16 @@ body {
   touch-action: pan-y pinch-zoom;
 }
 
+/* Cursor-follow purple glow (from SwipeMail) */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(220px 220px at var(--mx, 50vw) var(--my, 50vh), rgba(124, 58, 237, 0.16), transparent 60%);
+  z-index: 0;
+}
+
 
 /* App layout */
 .app {
@@ -113,6 +123,70 @@ body {
   height: 100%;
 }
 
+/* Generic button styles (from SwipeMail) */
+.btn {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text);
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease, color 120ms ease, border-color 120ms ease;
+  box-shadow: var(--shadow-sm);
+}
+.btn:hover { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(2,6,23,0.08); }
+.btn:active { transform: translateY(0); }
+.btn-primary { background: var(--primary-soft); color: var(--primary-ink); border-color: transparent; }
+.btn-lg { padding: 12px 18px; font-size: 1rem; border-radius: 12px; }
+
+/* Top hero borrowed from SwipeMail package */
+.swipemail-hero {
+  position: relative;
+  width: 100%;
+  max-width: 1100px;
+  min-height: 92vh; /* stretch a bit more vertically */
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px 16px;
+}
+.swipemail-hero .hero-title {
+  font-size: clamp(2.8rem, 8vw, 4.2rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.swipemail-hero .hero-tag {
+  margin-top: 10px;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+}
+.swipemail-hero .hero-cta { margin-top: 18px; }
+.hero-arrow {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+.hero-arrow:hover { background: var(--bg-elev); transform: translateX(-50%) translateY(-2px); }
+
 /* Welcome Hero Section */
 .welcome-hero {
   flex: 1;
@@ -122,7 +196,8 @@ body {
   padding: 0;
   animation: fadeIn 0.8s ease-in-out;
   box-sizing: border-box;
-  margin-top: 3.5rem;
+  margin-top: 2rem;
+  min-height: 92vh; /* stretch unauthenticated view vertically */
 }
 
 .welcome-content {
@@ -279,7 +354,10 @@ body {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  background-size: 200% 200%;
+  transition: background-position 0.3s ease;
 }
+.gradient-text:hover { background-position: 100% 0; }
 
 .welcome-subtitle {
   font-size: 1.1rem;
@@ -299,6 +377,7 @@ body {
   display: flex;
   align-items: center;
   gap: 1rem;
+  transition: transform 0.15s ease, background 0.2s ease;
 }
 
 .feature-icon {
@@ -308,7 +387,18 @@ body {
   background: var(--primary-soft);
   border-radius: 10px;
   border: 1px solid var(--border);
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
 }
+
+.feature:hover .feature-icon {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+
+.feature:hover strong { color: var(--primary-ink); }
+.feature:hover span { color: var(--primary-ink); opacity: 0.9; }
 
 .feature-text {
   display: flex;

@@ -1,6 +1,6 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, forwardRef, useImperativeHandle } from 'react'
 
-function AuthButton({ user, onLoginSuccess, onLogout }) {
+function AuthButtonImpl({ user, onLoginSuccess, onLogout }, ref) {
   const [authReady, setAuthReady] = useState(false)
   const [authError, setAuthError] = useState(null)
   const googleButtonRef = useRef(null)
@@ -40,6 +40,58 @@ function AuthButton({ user, onLoginSuccess, onLogout }) {
       setAuthReady(true) // Still show error message
     }
   }
+
+  // Imperative sign-in trigger for external buttons
+  useImperativeHandle(ref, () => ({
+    async signIn() {
+      try {
+        const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
+        if (!clientId) throw new Error('Google OAuth Client ID not configured')
+        await waitForGoogleIdentity()
+
+        if (!window.google?.accounts?.oauth2) throw new Error('Google OAuth2 client unavailable')
+
+        const client = window.google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          // Request basic profile + Gmail modify so we can fetch user info and access Gmail
+          scope: 'openid email profile https://www.googleapis.com/auth/gmail.modify',
+          prompt: 'consent',
+          callback: async (tokenResponse) => {
+            try {
+              if (!tokenResponse?.access_token) throw new Error('No access token received')
+              // Fetch basic user profile
+              const resp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+              })
+              if (!resp.ok) throw new Error('Failed to fetch user profile')
+              const profile = await resp.json()
+
+              onLoginSuccess({
+                user: {
+                  name: profile.name || profile.given_name || 'User',
+                  email: profile.email,
+                  picture: profile.picture,
+                },
+                access_token: tokenResponse.access_token,
+              })
+            } catch (e) {
+              console.error('Sign-in callback error:', e)
+              alert('Failed to complete sign-in. Please try again.')
+            }
+          },
+          error_callback: (error) => {
+            console.error('OAuth error:', error)
+            alert('Sign-in was cancelled or failed. Please try again.')
+          },
+        })
+
+        client.requestAccessToken()
+      } catch (e) {
+        console.error('signIn() failed:', e)
+        alert('Google sign-in is unavailable. Please refresh and try again.')
+      }
+    },
+  }))
 
   const waitForGoogleIdentity = () => {
     return new Promise((resolve, reject) => {
@@ -218,4 +270,4 @@ function AuthButton({ user, onLoginSuccess, onLogout }) {
   )
 }
 
-export default AuthButton
+export default forwardRef(AuthButtonImpl)
