@@ -25,7 +25,7 @@ function EmailStack({ emails, currentFolder, onMarkRead, onApplyLabel, onAnalyze
     const isStream = currentFolder === 'STREAM'
     const isSwipeMailFolder = typeof currentFolder === 'string' && currentFolder.includes('SwipeMail/')
 
-    console.log(`${direction === 'left' ? 'Not interested' : 'Interested'} in email:`, email.subject)
+    console.log(`${direction === 'left' ? 'Not interested (marking as read)' : 'Interested (marking as read + sorting)'} in email:`, email.subject)
 
     // Mark this card as swiping
     setSwipingCards(prev => new Set([...prev, email.id]))
@@ -42,6 +42,9 @@ function EmailStack({ emails, currentFolder, onMarkRead, onApplyLabel, onAnalyze
         setProcessedEmails(prev => [...prev, { ...email, action: 'not_interested' }])
       }
     } else {
+      // Right swipe - always mark as read first
+      onMarkRead(email.id)
+
       if (isStream) {
         // In stream view, right swipe analyzes and sorts
         if (onAnalyzeAndSort) {

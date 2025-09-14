@@ -37,6 +37,7 @@ function App() {
     }
   })
   const [maxFetchedDays, setMaxFetchedDays] = useState(7) // Track the maximum time range we've fetched
+  const [fetchedTimeRange, setFetchedTimeRange] = useState(null) // Track what time range we've actually fetched
   const [allFetchedEmails, setAllFetchedEmails] = useState([]) // Store all fetched emails
   const [atMaximumEmails, setAtMaximumEmails] = useState(false) // Track if we've reached the 10k limit
   const [remainingCount, setRemainingCount] = useState(0)
@@ -417,11 +418,6 @@ function App() {
           setStreamEmails((prev) => ({ ...prev, unread: next }))
           setEmails(next)
           setAllFetchedEmails(next)
-        } else if (stream.id === 'starred') {
-          const next = await fetchEmailsWithQuery('is:starred', days)
-          setStreamEmails((prev) => ({ ...prev, starred: next }))
-          setEmails(next)
-          setAllFetchedEmails(next)
         } else if (stream.id === 'inbox-all') {
           const next = await fetchEmailsWithLabelId('INBOX', days)
           setStreamEmails((prev) => ({ ...prev, ['inbox-all']: next }))
@@ -436,7 +432,7 @@ function App() {
     setStreamsLoaded(true)
   }
 
-  const handleTimeRangeChange = (timeRange) => {
+  const handleTimeRangeChange = async (timeRange) => {
     console.log('Time range changed to:', timeRange.label)
     setTimeRangeVersion((v) => v + 1)
 
@@ -449,60 +445,65 @@ function App() {
     }
 
     const newDays = timeRange.days
-    const needsRefetch = !newDays || (newDays > maxFetchedDays) // "All time" or expanding time range
+    const currentFetchedDays = fetchedTimeRange?.days
+
+    // Determine if we need to fetch new data
+    // Need to fetch if:
+    // 1. Requesting "All time" and we haven't fetched all
+    // 2. Requesting more days than we've fetched
+    // 3. We haven't fetched anything yet
+    const needsRefetch = !fetchedTimeRange ||
+                         (!newDays && currentFetchedDays) || // All time requested but we have limited data
+                         (newDays && currentFetchedDays && newDays > currentFetchedDays) // Expanding range
 
     if (needsRefetch) {
-      console.log('🔄 Refetching emails for expanded time range')
-      // Clear current emails and refetch with new time range
-      setEmails([])
-      setStreamEmails({}) // Clear cached stream emails
-      setAllFetchedEmails([])
-      setMaxFetchedDays(newDays || Infinity)
+      console.log(`🔄 Fetching emails for ${timeRange.label} (expanding from ${fetchedTimeRange?.label || 'none'})`)
 
-      // Refetch current view with new time range
-      if (currentFolder === 'STREAM') {
-        setStreamsLoaded(false)
-        loadAllStreams(newDays).finally(() => setStreamsLoaded(true))
-      } else {
-        // For folder views, refetch with time filter by converting to query
-        setLoading(true)
-        fetchEmails(currentFolder, newDays).finally(() => setLoading(false))
+      // Only fetch for the specific time range requested
+      setLoading(true)
+      try {
+        if (currentFolder === 'STREAM' && currentStream?.id === 'unread') {
+          const emails = await fetchEmailsWithQuery('is:unread', newDays)
+          setMasterUnreadEmails(emails) // Update master cache
+          setStreamEmails(prev => ({ ...prev, unread: emails }))
+          setEmails(emails)
+          setAllFetchedEmails(emails)
+          setFetchedTimeRange(timeRange) // Update what we've fetched
+          setMaxFetchedDays(newDays || Infinity)
+        } else if (currentFolder === 'STREAM') {
+          await loadAllStreams(newDays)
+          setFetchedTimeRange(timeRange)
+          setMaxFetchedDays(newDays || Infinity)
+        } else {
+          await fetchEmails(currentFolder, newDays)
+          setFetchedTimeRange(timeRange)
+          setMaxFetchedDays(newDays || Infinity)
+        }
+      } finally {
+        setLoading(false)
+        setStreamsLoaded(true)
       }
     } else {
-      console.log('📋 Filtering existing emails for narrower time range')
-      // Just filter existing emails
+      console.log(`📋 Filtering cached emails for ${timeRange.label} (using cached ${fetchedTimeRange?.label || 'data'})`)
+
+      // Just filter existing emails since we have a wider range cached
       if (currentFolder === 'STREAM') {
-        // Filter stream emails
         if (currentStream?.id === 'unread') {
-          // Derive from master cache to ensure correctness
           const source = masterUnreadEmails.length ? masterUnreadEmails : allFetchedEmails
-          const next = filterEmailsByTimeRange(source, newDays)
-          setEmails(next)
-          setAllFetchedEmails(next)
-          setStreamEmails(prev => ({ ...prev, unread: next }))
-        } else {
-          const filteredStreamEmails = {}
-          Object.keys(streamEmails).forEach(streamId => {
-            filteredStreamEmails[streamId] = filterEmailsByTimeRange(streamEmails[streamId], newDays)
-          })
-          setStreamEmails(filteredStreamEmails)
-          if (currentStream) {
-            const next = filteredStreamEmails[currentStream.id] || []
-            setEmails(next)
-            setAllFetchedEmails(next)
-          }
+          const filtered = filterEmailsByTimeRange(source, newDays)
+          setEmails(filtered)
+          setStreamEmails(prev => ({ ...prev, unread: filtered }))
         }
       } else {
-        // Filter folder emails
-        const filteredEmails = filterEmailsByTimeRange(allFetchedEmails, newDays)
-        setEmails(filteredEmails)
-        setAllFetchedEmails(filteredEmails)
+        const filtered = filterEmailsByTimeRange(allFetchedEmails, newDays)
+        setEmails(filtered)
       }
     }
   }
 
   // Helper function to build query with time range
-  const buildQueryWithTimeRange = (baseQuery, days = getCurrentTimeRange().days) => {
+  const buildQueryWithTimeRange = (baseQuery, daysOverride) => {
+    const days = daysOverride ?? getCurrentTimeRange().days
     if (!days) {
       // "All time" - no date restriction
       return baseQuery
@@ -511,10 +512,15 @@ function App() {
     const cutoffDate = new Date()
     cutoffDate.setDate(cutoffDate.getDate() - days)
     cutoffDate.setHours(0, 0, 0, 0) // Start of day for consistent filtering
-    const afterTimestamp = Math.floor(cutoffDate.getTime() / 1000) // Convert to seconds since epoch
 
-    const query = `${baseQuery} after:${afterTimestamp}`
-    console.log(`🕒 Time filter: ${days} days ago (${cutoffDate.toISOString()}) = timestamp ${afterTimestamp}`)
+    // Format date as YYYY/MM/DD for Gmail query
+    const year = cutoffDate.getFullYear()
+    const month = String(cutoffDate.getMonth() + 1).padStart(2, '0')
+    const day = String(cutoffDate.getDate()).padStart(2, '0')
+    const dateStr = `${year}/${month}/${day}`
+
+    const query = `${baseQuery} after:${dateStr}`
+    console.log(`🕒 Time filter: ${days} days ago (${cutoffDate.toISOString()}) = date ${dateStr}`)
     console.log(`📋 Final query: "${query}"`)
     return query
   }
@@ -608,11 +614,6 @@ function App() {
         setStreamEmails((prev) => ({ ...prev, unread: emailsForRange }))
         setEmails(emailsForRange)
         setAllFetchedEmails(emailsForRange)
-      } else if (streamId === 'starred') {
-        const emailsForRange = await fetchEmailsWithQuery('is:starred', days)
-        setStreamEmails((prev) => ({ ...prev, starred: emailsForRange }))
-        setEmails(emailsForRange)
-        setAllFetchedEmails(emailsForRange)
       } else if (streamId === 'inbox-all') {
         const emailsForRange = await fetchEmailsWithLabelId('INBOX', days)
         setStreamEmails((prev) => ({ ...prev, ['inbox-all']: emailsForRange }))
@@ -691,7 +692,7 @@ function App() {
               return true
             }
             if (label.type === 'system') {
-              const essentialSystemLabels = ['INBOX', 'STARRED', 'SENT', 'DRAFT', 'TRASH']
+              const essentialSystemLabels = ['INBOX']
               return essentialSystemLabels.includes(label.name)
             }
             return false
@@ -812,33 +813,53 @@ function App() {
   }
 
   const processEmailDetails = async (messages) => {
-    // Fetch details for each message
+    // Fetch details for each message with rate limiting
     setLoadTotal(messages.length || 0)
     setLoadProgress(0)
-    const emailPromises = messages.map(async (message) => {
-      try {
-        const emailResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}`, {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-        })
 
-        if (!emailResponse.ok) {
-          console.error(`Failed to fetch message ${message.id}:`, emailResponse.status)
+    // Process in smaller batches to avoid rate limits
+    const BATCH_SIZE = 10
+    const DELAY_BETWEEN_BATCHES = 1000 // 1 second delay between batches
+    const emailsData = []
+
+    for (let i = 0; i < messages.length; i += BATCH_SIZE) {
+      const batch = messages.slice(i, i + BATCH_SIZE)
+
+      const batchPromises = batch.map(async (message) => {
+        try {
+          const emailResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}`, {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+          })
+
+          if (!emailResponse.ok) {
+            if (emailResponse.status === 429) {
+              console.warn(`Rate limited for message ${message.id}, skipping...`)
+              return null
+            }
+            console.error(`Failed to fetch message ${message.id}:`, emailResponse.status)
+            return null
+          }
+
+          const json = await emailResponse.json()
+          setLoadProgress((p) => Math.min((p || 0) + 1, messages.length || 0))
+          return json
+        } catch (error) {
+          console.error(`Error fetching message ${message.id}:`, error)
           return null
         }
+      })
 
-        const json = await emailResponse.json()
-        setLoadProgress((p) => Math.min((p || 0) + 1, messages.length || 0))
-        return json
-      } catch (error) {
-        console.error(`Error fetching message ${message.id}:`, error)
-        return null
+      const batchResults = await Promise.all(batchPromises)
+      emailsData.push(...batchResults)
+
+      // Add delay between batches to avoid rate limiting
+      if (i + BATCH_SIZE < messages.length) {
+        await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES))
       }
-    })
-
-    const emailsData = await Promise.all(emailPromises)
+    }
 
     // Filter out failed requests and format the emails
         // Helper functions for email processing
@@ -1029,9 +1050,7 @@ function App() {
 
     try {
       const streams = [
-        { id: 'unread', query: 'is:unread' },
-        { id: 'starred', query: 'is:starred' },
-        { id: 'inbox-all', labelId: 'INBOX' },
+        { id: 'unread', query: 'is:unread' }
       ]
 
       // Fetch all streams in parallel
@@ -1084,9 +1103,7 @@ function App() {
       }
 
       console.log('All streams loaded successfully:', {
-        unread: newStreamEmails.unread?.length || 0,
-        starred: newStreamEmails.starred?.length || 0,
-        'inbox-all': newStreamEmails['inbox-all']?.length || 0,
+        unread: newStreamEmails.unread?.length || 0
       })
     } catch (error) {
       console.error('Error loading streams:', error)
@@ -1174,7 +1191,7 @@ function App() {
     return null
   }
 
-  const applyLabel = async (emailId, label = 'STARRED') => {
+  const applyLabel = async (emailId, label) => {
     if (!accessToken) {
       console.error('No access token available for Gmail API')
       return
@@ -1224,8 +1241,6 @@ function App() {
           console.log(`✅ Sorted email to folder: ${folderName} (detected as ${analysis.senderType})`)
         }
 
-        // Also star it as before
-        await applyLabel(email.id, 'STARRED')
       } else {
         // Fallback to organization folder if analysis fails
         console.log('⚠️ Analysis failed, defaulting to Organization folder')
@@ -1234,7 +1249,6 @@ function App() {
           await applyLabel(email.id, labelId)
           console.log('✅ Sorted email to folder: SwipeMail/Organization (fallback)')
         }
-        await applyLabel(email.id, 'STARRED')
       }
     } catch (error) {
       console.error('Error analyzing and sorting email:', error)
@@ -1328,11 +1342,15 @@ function App() {
       ;(async () => {
         try {
           // Fast path on first load: fetch unread directly for current timeframe (defaults to 24h)
-          const days = getCurrentTimeRange()?.days ?? 1
+          const initialTimeRange = getCurrentTimeRange()
+          const days = initialTimeRange?.days ?? 1
           const initialUnread = await fetchEmailsWithQuery('is:unread', days)
           setStreamEmails({ unread: initialUnread })
           setEmails(initialUnread)
           setAllFetchedEmails(initialUnread)
+          setMasterUnreadEmails(initialUnread) // Set as master cache
+          setFetchedTimeRange(initialTimeRange) // Track what we've fetched
+          setMaxFetchedDays(days)
         } catch (e) {
           console.error('Initial unread load failed:', e)
           setEmails([])
