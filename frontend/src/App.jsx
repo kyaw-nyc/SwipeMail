@@ -6,6 +6,7 @@ import FolderBar from './components/FolderBar'
 import { useCerebrasAnalysis } from './hooks/useCerebrasAnalysis'
 import cerebrasApi from './services/cerebrasApi'
 import { createCalendarEvent } from './services/calendar'
+import EventConfirmModal from './components/EventConfirmModal'
 import './App.css'
 
 function App() {
@@ -32,6 +33,9 @@ function App() {
   const [remainingCount, setRemainingCount] = useState(0)
   const [loadTotal, setLoadTotal] = useState(0)
   const [loadProgress, setLoadProgress] = useState(0)
+  const [eventModalOpen, setEventModalOpen] = useState(false)
+  const [eventDraft, setEventDraft] = useState(null)
+  const [eventSubmitting, setEventSubmitting] = useState(false)
 
   // Initialize Cerebras analysis hook
   const { analyzeEmail, isAnalyzing } = useCerebrasAnalysis()
@@ -231,91 +235,129 @@ function App() {
         alert('Please sign in first to access Calendar')
         return
       }
-      // Ensure Calendar scope access token (request if needed)
-      const ensureCalendarToken = () => new Promise((resolve, reject) => {
+      // Use existing extraction result, or run once
+      let result = eventAnalysis[email.id]?.result
+      if (!result) {
+        const forAi = {
+          subject: email.subject || '',
+          from: email.from || '',
+          body: (email.body && typeof email.body === 'string' ? email.body.replace(/<[^>]+>/g, ' ') : email.snippet || ''),
+        }
         try {
-          if (!window.google?.accounts?.oauth2) return resolve(accessToken)
-          const client = window.google.accounts.oauth2.initTokenClient({
-            client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
-            scope: 'https://www.googleapis.com/auth/calendar.events',
-            prompt: '',
-            callback: (tokenResponse) => {
-              if (tokenResponse?.access_token) {
-                resolve(tokenResponse.access_token)
-              } else {
-                resolve(accessToken)
-              }
-            },
-            error_callback: () => resolve(accessToken),
-          })
-          client.requestAccessToken()
-        } catch (e) {
+          setEventAnalysis((prev) => ({ ...prev, [email.id]: { ...(prev[email.id] || {}), loading: true } }))
+          result = await cerebrasApi.extractEventFromEmail(forAi)
+          setEventAnalysis((prev) => ({ ...prev, [email.id]: { loading: false, result } }))
+        } catch (err) {
+          setEventAnalysis((prev) => ({ ...prev, [email.id]: { loading: false, error: err.message || 'Failed' } }))
+        }
+      }
+      const title = (result?.has_event && result.event_title) || email.subject || 'Event from email'
+      const desc = `From: ${email.from}\n\n${(email.body || '').toString().replace(/<[^>]+>/g, ' ').slice(0, 800)}`
+      const tz = result?.timezone || undefined
+      const parseToDateTime = (s) => {
+        if (!s) return null
+        const DEFAULT_YEAR = 2025
+        let str = String(s).trim()
+
+        // If ISO date-only (yyyy-mm-dd), assume 9am local
+        const isoDateOnly = /^(\d{4})-(\d{2})-(\d{2})$/
+        if (isoDateOnly.test(str)) {
+          return new Date(`${str}T09:00:00`)
+        }
+
+        // MM/DD or MM/DD/YYYY (default year -> 2025)
+        let m = str.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/)
+        if (m) {
+          const mm = String(m[1]).padStart(2, '0')
+          const dd = String(m[2]).padStart(2, '0')
+          let yyyy = m[3]
+          if (!yyyy) yyyy = String(DEFAULT_YEAR)
+          else if (yyyy.length === 2) yyyy = `20${yyyy}`
+          return new Date(`${yyyy}-${mm}-${dd}T09:00:00`)
+        }
+
+        // MM-DD or MM-DD-YYYY (default year -> 2025)
+        m = str.match(/^(\d{1,2})-(\d{1,2})(?:-(\d{2,4}))?$/)
+        if (m) {
+          const mm = String(m[1]).padStart(2, '0')
+          const dd = String(m[2]).padStart(2, '0')
+          let yyyy = m[3]
+          if (!yyyy) yyyy = String(DEFAULT_YEAR)
+          else if (yyyy.length === 2) yyyy = `20${yyyy}`
+          return new Date(`${yyyy}-${mm}-${dd}T09:00:00`)
+        }
+
+        // Month Name D[, YYYY][ time]
+        m = str.match(/^(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t|tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{1,2})(?:\s*,?\s*(\d{4}))?(.*)$/i)
+        if (m) {
+          const monthDay = `${m[1]} ${m[2]}`
+          const year = m[3] || String(DEFAULT_YEAR)
+          const tail = (m[4] || '').trim()
+          const candidate = `${monthDay}, ${year}${tail ? ` ${tail}` : ''}`
+          const d = new Date(candidate)
+          if (!isNaN(d.getTime())) return d
+        }
+
+        // If string contains month name but no 4-digit year, append default year
+        if (!/\b\d{4}\b/.test(str) && /[A-Za-z]{3,9}/.test(str)) {
+          const d = new Date(`${str} ${DEFAULT_YEAR}`)
+          if (!isNaN(d.getTime())) return d
+        }
+
+        // Fallback: try native parse
+        const d = new Date(str)
+        return isNaN(d.getTime()) ? null : d
+      }
+      let startDt = parseToDateTime(result?.start_time) || new Date()
+      let endDt = parseToDateTime(result?.end_time) || new Date(startDt.getTime() + 60 * 60 * 1000)
+      const draft = {
+        summary: title,
+        description: desc,
+        location: result?.location || '',
+        start: { dateTime: startDt.toISOString(), ...(tz ? { timeZone: tz } : {}) },
+        end: { dateTime: endDt.toISOString(), ...(tz ? { timeZone: tz } : {}) },
+      }
+      setEventDraft(draft)
+      setEventModalOpen(true)
+    } catch (e) {
+      console.error('Prepare Add to Calendar failed:', e)
+      alert(e.message || 'Failed to prepare calendar event')
+    }
+  }
+
+  const ensureCalendarToken = (hintEmail) => new Promise((resolve) => {
+    try {
+      if (!window.google?.accounts?.oauth2) return resolve(accessToken)
+      const client = window.google.accounts.oauth2.initTokenClient({
+        client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+        scope: 'https://www.googleapis.com/auth/calendar.events',
+        include_granted_scopes: true,
+        prompt: '',
+        hint: hintEmail || undefined,
+        callback: (tokenResponse) => {
+          if (tokenResponse?.access_token) return resolve(tokenResponse.access_token)
           resolve(accessToken)
-        }
+        },
+        error_callback: () => resolve(accessToken),
       })
-      // Prefer full body for extraction; fallback to snippet
-      const forAi = {
-        subject: email.subject || '',
-        from: email.from || '',
-        body: (email.body && typeof email.body === 'string' ? email.body.replace(/<[^>]+>/g, ' ') : email.snippet || ''),
-      }
-      const result = await cerebrasApi.extractEventFromEmail(forAi)
-      let event = null
-      if (result?.has_event) {
-        // Map result to Calendar event
-        const title = result.event_title || email.subject || 'Event from email'
-        const description = `From: ${email.from}\n\n${(email.body || '').toString().replace(/<[^>]+>/g, ' ').slice(0, 800)}`
-        const tz = result.timezone || undefined
-        const toStartEnd = (s) => {
-          if (!s) return null
-          if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return { date: s }
-          const d = new Date(s)
-          if (isNaN(d.getTime())) return null
-          const obj = { dateTime: d.toISOString() }
-          if (tz) obj.timeZone = tz
-          return obj
-        }
-        const start = toStartEnd(result.start_time)
-        let end = toStartEnd(result.end_time)
-        if (!start) {
-          // Fallback to now +1h
-          const now = new Date()
-          const later = new Date(now.getTime() + 60 * 60 * 1000)
-          event = { summary: title, description, start: { dateTime: now.toISOString() }, end: { dateTime: later.toISOString() } }
-        } else {
-          if (!end) {
-            if (start.dateTime) {
-              const dt = new Date(start.dateTime)
-              const dt2 = new Date(dt.getTime() + 60 * 60 * 1000)
-              end = { dateTime: dt2.toISOString() }
-              if (tz) end.timeZone = tz
-            } else if (start.date) {
-              end = { date: start.date }
-            }
-          }
-          event = { summary: title, description, location: result.location || undefined, start, end }
-        }
-      }
-      if (!event) {
-        // Minimal fallback event
-        const now = new Date()
-        const later = new Date(now.getTime() + 60 * 60 * 1000)
-        event = {
-          summary: email.subject || 'Event from email',
-          description: `From: ${email.from}\n\n${(email.body || '').toString().replace(/<[^>]+>/g, ' ').slice(0, 800)}`,
-          start: { dateTime: now.toISOString() },
-          end: { dateTime: later.toISOString() },
-        }
-      }
-      const calToken = await ensureCalendarToken()
-      console.log('[Calendar] Creating event with payload:', event)
-      const created = await createCalendarEvent(calToken, event)
+      client.requestAccessToken()
+    } catch {
+      resolve(accessToken)
+    }
+  })
+
+  const handleConfirmCreateEvent = async (draft) => {
+    try {
+      setEventSubmitting(true)
+      const calToken = await ensureCalendarToken(user?.email)
+      const created = await createCalendarEvent(calToken, draft)
       console.log('[Calendar] Event created:', created)
-      const link = created?.htmlLink
-      if (link) window.open(link, '_blank')
+      setEventSubmitting(false)
+      setEventModalOpen(false)
       alert('Calendar event created')
     } catch (e) {
-      console.error('Add to Calendar failed:', e)
+      console.error('Create Calendar event failed:', e)
+      setEventSubmitting(false)
       alert(e.message || 'Failed to create calendar event')
     }
   }
@@ -1257,6 +1299,14 @@ function App() {
           </>
         )}
       </main>
+      <EventConfirmModal
+        open={eventModalOpen}
+        draft={eventDraft}
+        onChange={setEventDraft}
+        onClose={() => setEventModalOpen(false)}
+        onConfirm={handleConfirmCreateEvent}
+        submitting={eventSubmitting}
+      />
     </div>
   )
 }

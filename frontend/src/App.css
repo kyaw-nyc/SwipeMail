@@ -165,6 +165,18 @@ body::before {
 .btn-primary { background: var(--primary-soft); color: var(--primary-ink); border-color: transparent; }
 .btn-lg { padding: 12px 18px; font-size: 1rem; border-radius: 12px; }
 
+/* Modal */
+.modal-overlay { position: fixed; inset: 0; background: rgba(2,6,23,0.35); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+.modal { width: min(680px, 92vw); background: #fff; border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; }
+.modal-header { padding: 14px 16px; border-bottom: 1px solid var(--border); font-weight: 700; }
+.modal-body { padding: 14px 16px; display: grid; gap: 12px; }
+.modal-footer { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
+.modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.modal-field { display: grid; gap: 6px; }
+.modal-field span { font-size: 12px; color: var(--text-muted); }
+.modal input[type="text"], .modal input[type="datetime-local"], .modal textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font: inherit; }
+.modal textarea { resize: vertical; }
+
 /* Top hero borrowed from SwipeMail package */
 .swipemail-hero {
   position: relative;
