@@ -377,10 +377,12 @@ function App() {
   const handleStreamChange = (stream) => {
     console.log('Stream changed to:', stream.name)
     setCurrentStream(stream)
+    // Always switch back to STREAM mode when selecting a stream
+    setCurrentFolder('STREAM')
     // Use cached emails if available, no need to refetch
-    if (currentFolder === 'STREAM' && streamsLoaded) {
+    if (streamsLoaded) {
       setEmails(streamEmails[stream.id] || [])
-    } else if (currentFolder === 'STREAM') {
+    } else {
       fetchEmails('STREAM')
     }
   }
