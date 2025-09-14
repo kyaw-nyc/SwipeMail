@@ -70,7 +70,7 @@ body {
   color: var(--text);
   margin: 0;
   padding: 0;
-  overflow: hidden;
+  overflow-y: auto; /* allow scroll on login */
   animation: fadeIn 0.5s ease-in-out;
   position: relative;
   height: 100vh;
@@ -99,7 +99,7 @@ body::before {
   width: 100vw;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-y: auto; /* allow page to scroll when content taller than viewport */
 }
 
 .app-header {
@@ -1120,7 +1120,7 @@ body::before {
 
 .email-header {
   display: grid;
-  grid-template-columns: 1fr 2fr 1fr;
+  grid-template-columns: 1fr 2fr auto;
   gap: 1rem;
   align-items: center;
   margin-bottom: 0;
@@ -1167,6 +1167,17 @@ body::before {
   text-align: right;
   min-width: 0;
 }
+
+.email-actions { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.add-to-calendar-btn {
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  border-radius: 10px;
+  background: var(--primary-soft);
+  color: var(--primary-ink);
+  border: 1px solid transparent;
+}
+.add-to-calendar-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(2,6,23,0.08); }
 
 .email-subject {
   margin: 0;
@@ -1436,6 +1447,15 @@ body::before {
   overflow: hidden;
   z-index: 100;
   outline: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+.gmail-button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.gmail-button.disabled:hover {
+  transform: none;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 

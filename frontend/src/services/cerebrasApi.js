@@ -166,6 +166,65 @@ Suggest 5-8 categories that would best organize these emails. Return as JSON arr
       return ['Work', 'Personal', 'Marketing', 'Social', 'News', 'Other']
     }
   }
+
+  /**
+   * Extract event details from an email using Cerebras
+   * Returns JSON: { has_event, event_title, start_time, end_time, timezone, location, confidence, brief_reason }
+   */
+  async extractEventFromEmail(email) {
+    const buildPrompt = ({ subject = '', from = '', body = '' }) => `You are an assistant that extracts event information from email text.
+Return ONLY strict JSON with this schema:
+{
+  "has_event": boolean,
+  "event_title": string | null,
+  "start_time": string | null,
+  "end_time": string | null,
+  "timezone": string | null,
+  "location": string | null,
+  "confidence": number,
+  "brief_reason": string
+}
+
+Rules:
+- If no event is present, set has_event=false and others to null except confidence and brief_reason.
+- If only a date is known (no time), provide ISO date and set missing parts to null.
+- If a range is implied but only start is known, set end_time to null.
+- Do not include any extra text before or after the JSON.
+
+Email context:
+From: ${from}
+Subject: ${subject}
+Body:
+${(body || '').slice(0, 4000)}
+`
+
+    const data = {
+      model: this.model,
+      messages: [
+        { role: 'system', content: 'You extract event data from emails and reply in strict JSON.' },
+        { role: 'user', content: buildPrompt(email) },
+      ],
+      temperature: 0,
+      max_tokens: 500,
+    }
+
+    const res = await this.makeRequest('/chat/completions', data)
+    const content = res?.choices?.[0]?.message?.content || ''
+    // Attempt to parse JSON from content
+    const tryParse = (text) => {
+      try { return JSON.parse(text) } catch {}
+      const block = text.match(/```(?:json)?\n([\s\S]*?)\n```/i)
+      if (block?.[1]) { try { return JSON.parse(block[1]) } catch {} }
+      const s = text.indexOf('{'), e = text.lastIndexOf('}')
+      if (s !== -1 && e !== -1 && e > s) { try { return JSON.parse(text.slice(s, e + 1)) } catch {} }
+      return null
+    }
+    const parsed = tryParse(content)
+    if (!parsed || typeof parsed.has_event !== 'boolean') {
+      throw new Error('Failed to parse Cerebras event extraction response')
+    }
+    return parsed
+  }
 }
 
 // Export singleton instance
