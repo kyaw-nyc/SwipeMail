@@ -1,7 +1,7 @@
 // Machine Learning Service for SwipeMail
 // Handles communication with the ML backend APIs
 
-const API_BASE_URL = 'http://localhost:3004'
+const API_BASE_URL = 'http://localhost:3001'
 const DEFAULT_USER_ID = 'demo-user' // For demo purposes
 
 class MLService {

@@ -690,7 +690,7 @@ function App() {
   }
 
   // Paginated fetch for Gmail message ids for a query
-  const fetchAllMessageIdsByQuery = async (q, max = 5) => {
+  const fetchAllMessageIdsByQuery = async (q, max = 15) => {
     const results = []
     let pageToken = undefined
     while (results.length < max) {
@@ -717,7 +717,7 @@ function App() {
     setLoading(true)
     try {
       console.log('📥 Loading master unread cache (all unread emails)...')
-      const ids = await fetchAllMessageIdsByQuery('in:inbox is:unread', 5)
+      const ids = await fetchAllMessageIdsByQuery('in:inbox is:unread', 15)
       if (!ids.length) {
         setMasterUnreadEmails([])
         return []
@@ -955,7 +955,7 @@ function App() {
 
       const queryWithTimeRange = buildQueryWithTimeRange(query, daysOverride)
       console.log(`📧 Fetching emails with query (paginated): "${queryWithTimeRange}"`)
-      const ids = await fetchAllMessageIdsByQuery(queryWithTimeRange, 5)
+      const ids = await fetchAllMessageIdsByQuery(queryWithTimeRange, 15)
       if (!ids.length) return []
       const result = await processEmailDetails(ids)
       console.log(`🎯 Processed ${result.length} emails for query "${query}"`)

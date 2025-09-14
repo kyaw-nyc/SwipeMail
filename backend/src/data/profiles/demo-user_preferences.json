@@ -51,7 +51,7 @@
     },
     "newsletter": {
       "right": 1,
-      "left": 1
+      "left": 2
     },
     "productivity": {
       "right": 2,
@@ -111,7 +111,7 @@
     },
     "technology": {
       "right": 1,
-      "left": 4
+      "left": 6
     },
     "sales_pitch": {
       "right": 2,
@@ -119,7 +119,7 @@
     },
     "marketing": {
       "right": 1,
-      "left": 5
+      "left": 11
     },
     "trial_offer": {
       "right": 0,
@@ -159,7 +159,7 @@
     },
     "career": {
       "right": 2,
-      "left": 4
+      "left": 6
     },
     "discount": {
       "right": 0,
@@ -308,9 +308,13 @@
     "services": {
       "right": 1,
       "left": 0
+    },
+    "personal": {
+      "right": 0,
+      "left": 1
     }
   },
-  "emailsProcessed": 22,
-  "lastUpdated": "2025-09-14T10:16:35.889Z",
+  "emailsProcessed": 30,
+  "lastUpdated": "2025-09-14T11:45:30.888Z",
   "version": "1.0"
 }
