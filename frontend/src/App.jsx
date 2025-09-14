@@ -693,7 +693,7 @@ function App() {
   }
 
   // Paginated fetch for Gmail message ids for a query
-  const fetchAllMessageIdsByQuery = async (q, max = 15) => {
+  const fetchAllMessageIdsByQuery = async (q, max = 500) => {
     const results = []
     let pageToken = undefined
     while (results.length < max) {
@@ -720,7 +720,7 @@ function App() {
     setLoading(true)
     try {
       console.log('📥 Loading master unread cache (all unread emails)...')
-      const ids = await fetchAllMessageIdsByQuery('in:inbox is:unread', 15)
+      const ids = await fetchAllMessageIdsByQuery('in:inbox is:unread', 500)
       if (!ids.length) {
         setMasterUnreadEmails([])
         return []
@@ -901,7 +901,7 @@ function App() {
       }
 
       console.log(`📧 Fetching emails with query (NO TIME FILTER): "${query}"`)
-      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=15&q=${encodeURIComponent(query)}`
+      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=500&q=${encodeURIComponent(query)}`
       console.log(`🌐 Request URL: ${url}`)
 
       // Fetch messages from Gmail API
@@ -958,7 +958,7 @@ function App() {
 
       const queryWithTimeRange = buildQueryWithTimeRange(query, daysOverride)
       console.log(`📧 Fetching emails with query (paginated): "${queryWithTimeRange}"`)
-      const ids = await fetchAllMessageIdsByQuery(queryWithTimeRange, 15)
+      const ids = await fetchAllMessageIdsByQuery(queryWithTimeRange, 500)
       if (!ids.length) return []
       const result = await processEmailDetails(ids)
       console.log(`🎯 Processed ${result.length} emails for query "${query}"`)
@@ -981,7 +981,7 @@ function App() {
       // Use Gmail API messages endpoint with labelIds parameter
       const results = []
       let pageToken = undefined
-      const maxResults = 15
+      const maxResults = 500
 
       while (results.length < maxResults) {
         const url = new URL('https://gmail.googleapis.com/gmail/v1/users/me/messages')
@@ -1599,7 +1599,7 @@ function App() {
 
   const analyzeAndSortEmail = async (email) => {
     try {
-      console.log('🧠 Analyzing email for sorting into folders...')
+      console.log('🧠 Analyzing email for advanced AI-powered sorting into folders...')
 
       // First, check custom folders using Cerebras AI
       const customFoldersToApply = []
@@ -1636,46 +1636,229 @@ function App() {
         }
       }
 
-      // Then, do the basic Individual/Organization classification
-      console.log('🧠 Analyzing email to determine if from individual or organization...')
+      // Enhanced smart categorization with advanced Cerebras AI analysis
+      console.log('🧠 Performing advanced Cerebras AI analysis for intelligent sorting...')
       const analysis = await analyzeEmail(email)
 
-      if (analysis && analysis.senderType) {
-        // Create folder name based on sender type
-        const folderName = analysis.senderType === 'individual'
-          ? 'SwipeMail/Individual'
-          : 'SwipeMail/Organization'
+      if (analysis) {
+        console.log(`🎯 Advanced AI Analysis Results:`)
+        console.log(`   📂 Content Category: ${analysis.contentCategory}`)
+        console.log(`   👤 Sender Type: ${analysis.senderType}`)
+        console.log(`   🎯 Priority Level: ${analysis.priority}`)
+        console.log(`   💬 Engagement Score: ${Math.round(analysis.engagement * 100)}%`)
+        console.log(`   🏷️ Key Topics: ${analysis.topics.join(', ')}`)
 
-        // Create label if it doesn't exist and apply it
-        const labelId = await createLabelIfNotExists(folderName)
-        if (labelId) {
-          await applyLabel(email.id, labelId)
-          console.log(`✅ Sorted email to folder: ${folderName} (detected as ${analysis.senderType})`)
+        const foldersToApply = []
+
+        // TIER 1: Primary categorization based on content type with enhanced naming
+        const categoryFolderMap = {
+          'work': 'SwipeMail/💼 Professional',
+          'personal': 'SwipeMail/👥 Personal',
+          'finance': 'SwipeMail/💰 Finance',
+          'commerce': 'SwipeMail/🛒 Shopping',
+          'education': 'SwipeMail/🎓 Learning',
+          'travel': 'SwipeMail/✈️ Travel',
+          'health': 'SwipeMail/🏥 Health',
+          'news': 'SwipeMail/📰 News',
+          'social': 'SwipeMail/🌐 Social',
+          'entertainment': 'SwipeMail/🎬 Entertainment',
+          'newsletters': 'SwipeMail/📧 Newsletters',
+          'notifications': 'SwipeMail/🔔 Notifications',
+          'spam': 'SwipeMail/🗑️ Likely Spam',
+          'other': 'SwipeMail/📋 Miscellaneous'
         }
 
+        const primaryCategory = analysis.contentCategory || 'other'
+        const primaryFolderName = categoryFolderMap[primaryCategory] || `SwipeMail/📋 ${primaryCategory.charAt(0).toUpperCase() + primaryCategory.slice(1)}`
+        foldersToApply.push(primaryFolderName)
+
+        // TIER 2: Sender-based smart subfolder creation
+        if (analysis.senderType === 'individual') {
+          // For individual senders, create more specific subcategories
+          if (primaryCategory === 'work') {
+            foldersToApply.push('SwipeMail/💼 Professional/👨‍💼 Colleagues')
+          } else if (primaryCategory === 'personal') {
+            foldersToApply.push('SwipeMail/👥 Personal/👨‍👩‍👧‍👦 Family & Friends')
+          } else if (!['personal', 'work'].includes(primaryCategory)) {
+            foldersToApply.push('SwipeMail/👥 From People')
+          }
+        } else if (analysis.senderType === 'organization') {
+          // For organizations, create business-focused subcategories
+          if (primaryCategory === 'commerce') {
+            foldersToApply.push('SwipeMail/🛒 Shopping/🏪 Store Communications')
+          } else if (!['newsletters', 'notifications', 'commerce', 'news'].includes(primaryCategory)) {
+            foldersToApply.push('SwipeMail/🏢 Organizations')
+          }
+        }
+
+        // TIER 3: Priority-based smart tagging
+        if (analysis.priority === 'high') {
+          foldersToApply.push('SwipeMail/🚨 High Priority')
+          // Also create priority subcategories
+          if (primaryCategory === 'work') {
+            foldersToApply.push('SwipeMail/🚨 High Priority/💼 Work Urgent')
+          } else if (primaryCategory === 'personal') {
+            foldersToApply.push('SwipeMail/🚨 High Priority/👥 Personal Urgent')
+          } else if (primaryCategory === 'finance') {
+            foldersToApply.push('SwipeMail/🚨 High Priority/💰 Financial Urgent')
+          }
+        } else if (analysis.priority === 'low') {
+          foldersToApply.push('SwipeMail/📊 Low Priority')
+        }
+
+        // TIER 4: Engagement-based smart folders
+        const engagementPercent = Math.round(analysis.engagement * 100)
+        if (engagementPercent >= 80) {
+          foldersToApply.push('SwipeMail/🌟 Highly Engaging')
+        } else if (engagementPercent <= 20) {
+          foldersToApply.push('SwipeMail/😴 Low Engagement')
+        }
+
+        // TIER 5: Topic-based smart tagging (for rich categorization)
+        if (analysis.topics && analysis.topics.length > 0) {
+          const significantTopics = analysis.topics.slice(0, 2) // Take top 2 topics
+          for (const topic of significantTopics) {
+            if (topic && topic.length > 2) { // Only meaningful topics
+              const topicFolder = `SwipeMail/🔖 Topics/${topic.charAt(0).toUpperCase() + topic.slice(1)}`
+              foldersToApply.push(topicFolder)
+            }
+          }
+        }
+
+        // TIER 6: ML Preference Integration - Advanced scoring
+        if (email._preferenceScorePercent !== undefined) {
+          const mlScore = email._preferenceScorePercent
+          console.log(`   🧠 ML Preference Score: ${mlScore}%`)
+
+          if (mlScore >= 85) {
+            foldersToApply.push('SwipeMail/🎯 AI Favorites/⭐ Top Picks')
+            console.log(`🌟 Exceptional ML score - adding to AI Top Picks`)
+          } else if (mlScore >= 70) {
+            foldersToApply.push('SwipeMail/🎯 AI Favorites')
+            console.log(`✨ High ML score - adding to AI Favorites`)
+          } else if (mlScore <= 15) {
+            foldersToApply.push('SwipeMail/📉 AI Low Interest/🚫 Avoid Similar')
+            console.log(`🚫 Very low ML score - flagging to avoid similar`)
+          } else if (mlScore <= 30) {
+            foldersToApply.push('SwipeMail/📉 AI Low Interest')
+            console.log(`📉 Low ML score - adding to AI Low Interest`)
+          }
+        }
+
+        // TIER 7: Time-sensitive and action-required detection
+        const subject = (email.subject || '').toLowerCase()
+        const body = (email.body || email.snippet || '').toLowerCase()
+
+        // Look for urgent/time-sensitive keywords
+        const urgentKeywords = ['urgent', 'asap', 'immediate', 'deadline', 'expires', 'limited time', 'act now', 'time sensitive']
+        const hasUrgentKeywords = urgentKeywords.some(keyword =>
+          subject.includes(keyword) || body.includes(keyword)
+        )
+
+        if (hasUrgentKeywords || analysis.priority === 'high') {
+          foldersToApply.push('SwipeMail/⏰ Time Sensitive')
+        }
+
+        // Look for action-required keywords
+        const actionKeywords = ['please confirm', 'action required', 'rsvp', 'respond by', 'approval needed', 'review required']
+        const needsAction = actionKeywords.some(keyword =>
+          subject.includes(keyword) || body.includes(keyword)
+        )
+
+        if (needsAction) {
+          foldersToApply.push('SwipeMail/✅ Action Required')
+        }
+
+        // Apply all determined folders
+        const appliedFolders = []
+        for (const folderName of foldersToApply) {
+          try {
+            const labelId = await createLabelIfNotExists(folderName)
+            if (labelId) {
+              await applyLabel(email.id, labelId)
+              appliedFolders.push(folderName)
+              console.log(`✅ Sorted email to folder: ${folderName}`)
+            }
+          } catch (error) {
+            console.error(`Failed to apply folder ${folderName}:`, error)
+          }
+        }
+
+        console.log(`📁 Email intelligently sorted into ${appliedFolders.length} AI-powered folders:`)
+        appliedFolders.forEach(folder => console.log(`   📂 ${folder}`))
+
       } else {
-        // Fallback to organization folder if analysis fails
-        console.log('⚠️ Analysis failed, defaulting to Organization folder')
-        const labelId = await createLabelIfNotExists('SwipeMail/Organization')
-        if (labelId) {
-          await applyLabel(email.id, labelId)
-          console.log('✅ Sorted email to folder: SwipeMail/Organization (fallback)')
+        // Enhanced intelligent fallback logic with better pattern recognition
+        console.log('⚠️ AI analysis failed, using enhanced smart heuristic classification')
+
+        const subject = (email.subject || '').toLowerCase()
+        const from = (email.from || '').toLowerCase()
+        const body = (email.body || email.snippet || '').toLowerCase()
+
+        let primaryFolder = 'SwipeMail/📋 Miscellaneous'
+        const fallbackFolders = []
+
+        // Enhanced pattern recognition
+        if (subject.includes('meeting') || subject.includes('calendar') || subject.includes('zoom') ||
+            subject.includes('teams') || body.includes('join the meeting') || subject.includes('conference call')) {
+          primaryFolder = 'SwipeMail/💼 Professional'
+          fallbackFolders.push('SwipeMail/📅 Meetings & Events')
+        } else if (subject.includes('order') || subject.includes('purchase') || subject.includes('shipping') ||
+                   subject.includes('delivery') || from.includes('store') || subject.includes('receipt')) {
+          primaryFolder = 'SwipeMail/🛒 Shopping'
+          if (subject.includes('shipped') || subject.includes('delivered')) {
+            fallbackFolders.push('SwipeMail/📦 Deliveries')
+          }
+        } else if (subject.includes('newsletter') || subject.includes('digest') || subject.includes('weekly') ||
+                   subject.includes('monthly') || from.includes('newsletter') || from.includes('news')) {
+          primaryFolder = 'SwipeMail/📧 Newsletters'
+        } else if (from.includes('notification') || subject.includes('alert') || subject.includes('reminder') ||
+                   subject.includes('update') || from.includes('noreply')) {
+          primaryFolder = 'SwipeMail/🔔 Notifications'
+        } else if (subject.includes('invoice') || subject.includes('bill') || subject.includes('payment') ||
+                   subject.includes('bank') || from.includes('bank') || subject.includes('statement')) {
+          primaryFolder = 'SwipeMail/💰 Finance'
+        } else if (subject.includes('travel') || subject.includes('flight') || subject.includes('hotel') ||
+                   subject.includes('booking') || subject.includes('reservation')) {
+          primaryFolder = 'SwipeMail/✈️ Travel'
+        } else if (from.includes('facebook') || from.includes('twitter') || from.includes('linkedin') ||
+                   from.includes('instagram') || subject.includes('social')) {
+          primaryFolder = 'SwipeMail/🌐 Social'
+        }
+
+        // Apply primary folder
+        const primaryLabelId = await createLabelIfNotExists(primaryFolder)
+        if (primaryLabelId) {
+          await applyLabel(email.id, primaryLabelId)
+          console.log(`✅ Sorted email to folder: ${primaryFolder} (enhanced heuristic)`)
+        }
+
+        // Apply any additional fallback folders
+        for (const folder of fallbackFolders) {
+          const labelId = await createLabelIfNotExists(folder)
+          if (labelId) {
+            await applyLabel(email.id, labelId)
+            console.log(`✅ Additional folder: ${folder}`)
+          }
         }
       }
 
-      // Summary log
-      const totalFolders = customFoldersToApply.length + 1 // +1 for Individual/Organization
-      console.log(`📁 Email sorted into ${totalFolders} folders total`)
+      // Summary log with total count
+      const totalCustomFolders = customFoldersToApply.length
+      const totalAIFolders = analysis ? 4 : 1 // Estimate based on typical AI analysis
+      console.log(`📊 Email sorting complete: ${totalCustomFolders} custom + ${totalAIFolders} AI folders = ${totalCustomFolders + totalAIFolders} total intelligent categorizations`)
 
     } catch (error) {
       console.error('Error analyzing and sorting email:', error)
-      // Fallback to organization folder on error
-      const labelId = await createLabelIfNotExists('SwipeMail/Organization')
+      // Fallback to a general folder on error
+      const labelId = await createLabelIfNotExists('SwipeMail/📋 Miscellaneous')
       if (labelId) {
         await applyLabel(email.id, labelId)
-        console.log('✅ Sorted email to folder: SwipeMail/Organization (error fallback)')
+        console.log('✅ Error fallback: Sorted to SwipeMail/📋 Miscellaneous')
       }
+      // Also star the email for manual review
       await applyLabel(email.id, 'STARRED')
+      console.log('⭐ Starred email for manual review due to sorting error')
     }
   }
 

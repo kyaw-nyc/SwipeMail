@@ -7,7 +7,7 @@ class CerebrasAPI {
   constructor() {
     this.apiKey = import.meta.env.VITE_CEREBRAS_API_KEY
     this.baseUrl = import.meta.env.VITE_CEREBRAS_API_URL || 'https://api.cerebras.ai/v1'
-    this.model = 'llama-3.3-70b' // Default model for analysis
+    this.model = 'llama-3.3-70b' // Using the latest Llama model for better analysis
 
     // Debug logging
     console.log('Cerebras API initialized:', {
@@ -48,54 +48,131 @@ class CerebrasAPI {
   }
 
   /**
-   * Analyze email sentiment and importance
+   * Analyze email with advanced categorization and intelligence
    * @param {Object} email - Email object with subject, from, snippet
    * @returns {Promise<Object>} Analysis results
    */
   async analyzeEmail(email) {
-    const prompt = `Analyze this email and determine if it's from an individual person or an organization:
+    const prompt = `You are an expert email analyst. Analyze this email comprehensively and provide detailed categorization.
 
+EMAIL TO ANALYZE:
 Subject: ${email.subject}
 From: ${email.from}
-Content: ${email.snippet}
+Content: ${email.snippet || email.body || ''}
 
-Analyze the sender and determine:
+ANALYSIS REQUIRED:
 
-1. SENDER TYPE: Is this from an "individual" (real person) or "organization" (company, service, automated system)?
+1. **SENDER TYPE**: Classify sender as:
+   - "individual": Personal emails from real people (friends, family, colleagues, personal contacts, recruiters writing personally)
+   - "organization": Companies, services, newsletters, automated systems, businesses, institutions, no-reply addresses
 
-Guidelines:
-- "individual" = Personal emails from real people (friends, family, colleagues, personal contacts)
-- "organization" = Companies, services, newsletters, automated systems, businesses, institutions
+2. **CONTENT CATEGORY**: Primary category:
+   - "work": Job-related, professional, work communications, career opportunities
+   - "personal": Personal relationships, social communications, family, friends
+   - "finance": Banking, investments, financial services, money-related
+   - "commerce": Shopping, purchases, e-commerce, retail, deals, promotions
+   - "education": Learning, courses, training, academic content
+   - "travel": Travel bookings, confirmations, travel-related information
+   - "health": Healthcare, medical, fitness, wellness
+   - "news": News updates, current events, journalism
+   - "social": Social media notifications, community updates
+   - "entertainment": Entertainment content, media, games, hobbies
+   - "newsletters": Regular informational updates, subscriptions
+   - "notifications": System notifications, alerts, confirmations
+   - "spam": Clearly promotional/spam content
+   - "other": Doesn't fit other categories
 
-Return ONLY a JSON object with this exact key: senderType
+3. **PRIORITY LEVEL**:
+   - "high": Urgent, time-sensitive, important personal/work communications
+   - "medium": Moderately important, should be reviewed soon
+   - "low": Informational, can be processed later
 
-Example formats:
-{"senderType": "individual"}
-{"senderType": "organization"}`
+4. **ENGAGEMENT LIKELIHOOD**: Based on content, how likely is user engagement?
+   - 0.0-1.0 score
+
+5. **KEY TOPICS**: Extract 2-4 key topics/tags from content (single words)
+
+EXAMPLES:
+- Newsletter from company → {"senderType": "organization", "contentCategory": "newsletters", "priority": "low", "engagement": 0.3, "topics": ["technology", "updates"]}
+- Email from colleague → {"senderType": "individual", "contentCategory": "work", "priority": "high", "engagement": 0.8, "topics": ["project", "deadline"]}
+- Shopping confirmation → {"senderType": "organization", "contentCategory": "commerce", "priority": "medium", "engagement": 0.6, "topics": ["purchase", "confirmation"]}
+
+Return ONLY a JSON object with these exact keys: senderType, contentCategory, priority, engagement, topics
+
+FORMAT: {"senderType": "...", "contentCategory": "...", "priority": "...", "engagement": 0.0, "topics": ["..."]}`
 
     const data = {
       model: this.model,
       messages: [
         {
+          role: 'system',
+          content: 'You are an expert email analyst. Always return valid JSON with the exact schema requested.'
+        },
+        {
           role: 'user',
           content: prompt
         }
       ],
-      max_tokens: 500,
-      temperature: 0.3
+      max_tokens: 300,
+      temperature: 0.2 // Lower temperature for more consistent categorization
     }
 
-    const response = await this.makeRequest('/chat/completions', data)
-
     try {
-      // Parse the JSON response from the model
+      const response = await this.makeRequest('/chat/completions', data)
       const analysisText = response.choices[0].message.content
-      return JSON.parse(analysisText)
+
+      // Enhanced JSON parsing with fallback
+      const tryParse = (text) => {
+        try { return JSON.parse(text) } catch {}
+        // Try extracting from markdown code blocks
+        const block = text.match(/```(?:json)?\n([\s\S]*?)\n```/i)
+        if (block?.[1]) { try { return JSON.parse(block[1]) } catch {} }
+        // Try finding JSON object boundaries
+        const s = text.indexOf('{'), e = text.lastIndexOf('}')
+        if (s !== -1 && e !== -1 && e > s) { try { return JSON.parse(text.slice(s, e + 1)) } catch {} }
+        return null
+      }
+
+      const parsed = tryParse(analysisText)
+
+      // Validate the response structure
+      if (parsed && parsed.senderType && parsed.contentCategory) {
+        return {
+          senderType: parsed.senderType,
+          contentCategory: parsed.contentCategory,
+          priority: parsed.priority || 'medium',
+          engagement: Math.max(0, Math.min(1, parsed.engagement || 0.5)),
+          topics: Array.isArray(parsed.topics) ? parsed.topics.slice(0, 4) : ['email']
+        }
+      } else {
+        throw new Error('Invalid response structure')
+      }
     } catch (parseError) {
-      console.warn('Failed to parse Cerebras response as JSON:', parseError)
-      // Return structured fallback
+      console.warn('Failed to parse advanced Cerebras analysis:', parseError)
+
+      // Intelligent fallback based on email content
+      const subject = (email.subject || '').toLowerCase()
+      const from = (email.from || '').toLowerCase()
+      const content = (email.snippet || email.body || '').toLowerCase()
+
+      // Simple heuristics for fallback
+      let senderType = 'organization'
+      if (from.includes('@gmail.com') || from.includes('@yahoo.com') || from.includes('@outlook.com')) {
+        senderType = 'individual'
+      }
+
+      let contentCategory = 'other'
+      if (subject.includes('work') || subject.includes('job') || subject.includes('meeting')) contentCategory = 'work'
+      else if (subject.includes('order') || subject.includes('purchase') || subject.includes('buy')) contentCategory = 'commerce'
+      else if (subject.includes('news') || subject.includes('update')) contentCategory = 'newsletters'
+      else if (subject.includes('bank') || subject.includes('payment') || subject.includes('invoice')) contentCategory = 'finance'
+
       return {
-        senderType: 'organization' // Default to organization if analysis fails
+        senderType,
+        contentCategory,
+        priority: 'medium',
+        engagement: 0.5,
+        topics: ['email']
       }
     }
   }

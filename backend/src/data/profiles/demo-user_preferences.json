@@ -2,115 +2,183 @@
   "userId": "demo-user",
   "preferences": {
     "technology": {
-      "right": 14,
-      "left": 8
-    },
-    "career": {
-      "right": 9,
-      "left": 1
-    },
-    "marketing": {
-      "right": 7,
+      "right": 3,
       "left": 5
     },
-    "newsletter": {
-      "right": 9,
-      "left": 2
+    "career": {
+      "right": 2,
+      "left": 1
     },
     "business": {
-      "right": 6,
-      "left": 4
-    },
-    "finance": {
-      "right": 3,
-      "left": 1
-    },
-    "response": {
       "right": 1,
-      "left": 1
-    },
-    "productivity": {
-      "right": 1,
-      "left": 1
-    },
-    "informational": {
-      "right": 3,
       "left": 2
     },
-    "email marketing": {
-      "right": 1,
-      "left": 1
+    "finance": {
+      "right": 0,
+      "left": 2
     },
-    "customer service": {
-      "right": 1,
-      "left": 1
+    "marketing": {
+      "right": 2,
+      "left": 3
     },
-    "software": {
-      "right": 1,
-      "left": 1
+    "newsletter": {
+      "right": 0,
+      "left": 4
     },
-    "communication": {
-      "right": 1,
-      "left": 1
-    },
-    "news": {
-      "right": 1,
+    "urgent": {
+      "right": 0,
       "left": 1
     },
     "announcement": {
       "right": 1,
+      "left": 2
+    },
+    "security": {
+      "right": 0,
       "left": 1
     },
-    "social_justice": {
-      "right": 1,
-      "left": 1
-    },
-    "polls": {
-      "right": 1,
-      "left": 1
-    },
-    "public_opinion": {
-      "right": 1,
-      "left": 1
-    },
-    "non_profit": {
-      "right": 1,
-      "left": 1
-    },
-    "social_science": {
-      "right": 1,
-      "left": 1
+    "informational": {
+      "right": 4,
+      "left": 6
     },
     "education": {
-      "right": 1,
-      "left": 0
+      "right": 0,
+      "left": 1
     },
-    "online_learning": {
-      "right": 1,
-      "left": 0
-    },
-    "training": {
-      "right": 1,
-      "left": 0
+    "awareness": {
+      "right": 0,
+      "left": 1
     },
     "professional_development": {
-      "right": 1,
-      "left": 0
+      "right": 0,
+      "left": 1
     },
-    "learning_opportunities": {
-      "right": 1,
-      "left": 0
+    "online_safety": {
+      "right": 0,
+      "left": 1
     },
-    "event": {
-      "right": 1,
-      "left": 0
+    "cybersecurity": {
+      "right": 0,
+      "left": 1
     },
-    "urgent": {
+    "promotion": {
       "right": 3,
+      "left": 3
+    },
+    "productivity": {
+      "right": 1,
+      "left": 3
+    },
+    "industry": {
+      "right": 1,
+      "left": 1
+    },
+    "limited_time_offer": {
+      "right": 1,
+      "left": 1
+    },
+    "sales_pitch": {
+      "right": 3,
+      "left": 3
+    },
+    "digital_products": {
+      "right": 1,
+      "left": 1
+    },
+    "apologetic": {
+      "right": 0,
+      "left": 1
+    },
+    "email_design": {
+      "right": 0,
+      "left": 1
+    },
+    "web_development": {
+      "right": 0,
+      "left": 1
+    },
+    "customer_communication": {
+      "right": 0,
+      "left": 1
+    },
+    "money": {
+      "right": 0,
+      "left": 1
+    },
+    "email marketing": {
+      "right": 0,
+      "left": 1
+    },
+    "digital marketing": {
+      "right": 0,
+      "left": 1
+    },
+    "online rewards": {
+      "right": 0,
+      "left": 1
+    },
+    "entertainment": {
+      "right": 2,
+      "left": 1
+    },
+    "product": {
+      "right": 1,
       "left": 0
+    },
+    "gaming": {
+      "right": 1,
+      "left": 0
+    },
+    "digital": {
+      "right": 1,
+      "left": 1
+    },
+    "games": {
+      "right": 1,
+      "left": 1
+    },
+    "digital_media": {
+      "right": 1,
+      "left": 1
+    },
+    "leisure": {
+      "right": 1,
+      "left": 1
+    },
+    "professional": {
+      "right": 1,
+      "left": 0
+    },
+    "email": {
+      "right": 1,
+      "left": 0
+    },
+    "unknown": {
+      "right": 1,
+      "left": 0
+    },
+    "shocked_and_shattered": {
+      "right": 1,
+      "left": 0
+    },
+    "celebratory": {
+      "right": 0,
+      "left": 1
+    },
+    "self-improvement": {
+      "right": 0,
+      "left": 1
+    },
+    "motivational": {
+      "right": 0,
+      "left": 1
+    },
+    "online": {
+      "right": 0,
+      "left": 1
     }
   },
-  "emailsProcessed": 25,
-  "lastUpdated": "2025-09-14T12:25:41.442Z",
+  "emailsProcessed": 15,
+  "lastUpdated": "2025-09-14T12:38:53.206Z",
   "version": "1.0"
 }
