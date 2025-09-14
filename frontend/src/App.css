@@ -24,6 +24,31 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* Fun loading screen animations */
+@keyframes emailFloat {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  25% { transform: translateY(-10px) rotate(5deg); }
+  50% { transform: translateY(-5px) rotate(-5deg); }
+  75% { transform: translateY(-15px) rotate(3deg); }
+}
+
+@keyframes bounceIn {
+  0% { opacity: 0; transform: scale(0.3); }
+  50% { opacity: 1; transform: scale(1.05); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes dotPulse {
+  0%, 20% { color: var(--primary); transform: scale(1); }
+  50% { color: var(--primary-ink); transform: scale(1.2); }
+  100% { color: var(--primary); transform: scale(1); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* Reset and base styles */
 * {
   margin: 0;
@@ -40,7 +65,7 @@ html {
 }
 
 body {
-  font-family: 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   background: var(--bg);
   color: var(--text);
   margin: 0;
@@ -93,9 +118,9 @@ body::before {
 
 .app-header h1 {
   color: var(--text);
-  font-size: clamp(1.5rem, 4vw, 2.25rem);
+  font-size: 1.5rem;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  font-family: 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
 .header-controls {
@@ -108,10 +133,9 @@ body::before {
 .app-main {
   flex: 1;
   padding: 0;
-  overflow: auto;
+  overflow: hidden;
   width: 100%;
   height: 100%;
-  padding-bottom: 2rem;
   box-sizing: border-box;
 }
 
@@ -716,13 +740,36 @@ body::before {
   margin: 1rem;
   position: relative;
   z-index: 1;
-  min-height: calc(100vh - 120px);
+  max-height: calc(100vh - 120px);
 }
 
 .loading {
   padding: 2rem;
   text-align: center;
   color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.loading p {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .empty-state {
@@ -1185,7 +1232,6 @@ body::before {
   word-wrap: break-word;
   overflow-wrap: break-word;
   padding-bottom: 10px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 .email-body p {
@@ -1595,7 +1641,7 @@ body::before {
     grid-template-columns: 1fr;
     gap: 1rem;
     height: calc(100vh - 80px);
-    min-height: 500px;
+    max-height: calc(100vh - 80px);
   }
 
   .app-header {
@@ -1977,4 +2023,95 @@ body::before {
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
+}
+
+/* Fun stream loading overlay */
+.stream-loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.stream-loading-content {
+  text-align: center;
+  color: white;
+  animation: slideUp 0.5s ease-out;
+}
+
+.loading-animation {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+}
+
+.email-icons {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.email-icon {
+  font-size: 3rem;
+  animation: emailFloat 3s ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+.email-icon:nth-child(1) { --delay: 0s; }
+.email-icon:nth-child(2) { --delay: 0.5s; }
+.email-icon:nth-child(3) { --delay: 1s; }
+.email-icon:nth-child(4) { --delay: 1.5s; }
+
+.loading-text h2 {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+  font-weight: 700;
+  animation: bounceIn 0.8s ease-out 0.2s both;
+}
+
+.loading-text p {
+  font-size: 1.2rem;
+  opacity: 0.9;
+  margin-bottom: 1.5rem;
+  animation: bounceIn 0.8s ease-out 0.4s both;
+}
+
+.loading-dots {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  animation: bounceIn 0.8s ease-out 0.6s both;
+}
+
+.loading-dots span {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: white;
+  animation: dotPulse 1.5s ease-in-out infinite;
+  animation-delay: var(--dot-delay, 0s);
+}
+
+.loading-dots span:nth-child(1) { --dot-delay: 0s; }
+.loading-dots span:nth-child(2) { --dot-delay: 0.3s; }
+.loading-dots span:nth-child(3) { --dot-delay: 0.6s; }
+
+/* Make sure the overlay covers everything */
+.stream-loading-overlay::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(2px);
 }

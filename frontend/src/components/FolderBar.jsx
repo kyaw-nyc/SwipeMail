@@ -32,10 +32,6 @@ function FolderBar({ folders = [], currentFolder, onFolderChange, currentStream,
 
   return (
     <div className="folder-bar">
-      <div className="folder-bar-header">
-        <h3>Folders</h3>
-      </div>
-
       {/* Stream Selector - always show since we removed system folders */}
       {onStreamChange && (
         <StreamSelector
