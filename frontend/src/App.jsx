@@ -524,8 +524,13 @@ function App() {
           }
         } else if (stream.id === 'smart') {
           const master = masterUnreadEmails.length ? masterUnreadEmails : await loadMasterUnread()
-          const timeFiltered = filterEmailsByTimeRange(master, days)
-          const smartRanked = await applyMLRanking(timeFiltered)
+          // Use the same time range as unread emails for consistency
+          const unreadDays = streamTimeRanges.unread.days
+          console.log(`🧠 Smart stream: master has ${master.length} emails, using unread timeframe ${unreadDays} days instead of smart default ${days} days`)
+          const timeFiltered = filterEmailsByTimeRange(master, unreadDays)
+          console.log(`🧠 Smart stream: time filtering result: ${timeFiltered.length} emails`)
+          const smartRanked = await applyMLRanking(timeFiltered, 'smart')
+          console.log(`🧠 Smart stream: ranked emails with scores:`, smartRanked.map(e => ({ id: e.id, subject: e.subject?.substring(0,30), score: e._preferenceScorePercent })))
           setStreamEmails((prev) => ({ ...prev, smart: smartRanked }))
 
           // Preserve current emails if we're switching back to the same stream
@@ -593,7 +598,7 @@ function App() {
       try {
         if (currentFolder === 'STREAM' && currentStream?.id === 'unread') {
           const emails = await fetchEmailsWithQuery('is:unread', newDays)
-          const rankedEmails = await applyMLRanking(emails)
+          const rankedEmails = await applyMLRanking(emails, 'unread')
           setMasterUnreadEmails(rankedEmails) // Update master cache
           setStreamEmails(prev => ({ ...prev, unread: rankedEmails }))
           setEmails(rankedEmails)
@@ -626,7 +631,7 @@ function App() {
         } else if (currentStream?.id === 'smart') {
           const source = masterUnreadEmails.length ? masterUnreadEmails : allFetchedEmails
           const filtered = filterEmailsByTimeRange(source, newDays)
-          const smartRanked = await applyMLRanking(filtered)
+          const smartRanked = await applyMLRanking(filtered, 'smart')
           setEmails(smartRanked)
           setStreamEmails(prev => ({ ...prev, smart: smartRanked }))
         }
@@ -762,7 +767,7 @@ function App() {
           emailsForRange = await fetchEmailsWithQuery('is:unread', days)
         }
         // Apply ML ranking for smart stream
-        const smartRanked = await applyMLRanking(emailsForRange)
+        const smartRanked = await applyMLRanking(emailsForRange, 'smart')
         setStreamEmails((prev) => ({ ...prev, smart: smartRanked }))
         setEmails(smartRanked)
         setAllFetchedEmails(smartRanked)
@@ -893,7 +898,7 @@ function App() {
       }
 
       console.log(`📧 Fetching emails with query (NO TIME FILTER): "${query}"`)
-      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5&q=${encodeURIComponent(query)}`
+      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=15&q=${encodeURIComponent(query)}`
       console.log(`🌐 Request URL: ${url}`)
 
       // Fetch messages from Gmail API
@@ -973,7 +978,7 @@ function App() {
       // Use Gmail API messages endpoint with labelIds parameter
       const results = []
       let pageToken = undefined
-      const maxResults = 5
+      const maxResults = 15
 
       while (results.length < maxResults) {
         const url = new URL('https://gmail.googleapis.com/gmail/v1/users/me/messages')
@@ -1310,7 +1315,7 @@ function App() {
             const days = daysOverride ?? getCurrentTimeRange().days
             const timeFiltered = filterEmailsByTimeRange(master, days)
             // Apply ML ranking for smart stream
-            const smartRanked = await applyMLRanking(timeFiltered)
+            const smartRanked = await applyMLRanking(timeFiltered, 'smart')
             return { id: stream.id, emails: smartRanked }
           } else if (stream.query) {
             console.log(`🔍 Fetching stream ${stream.id} with query: "${stream.query}"`)
@@ -1343,7 +1348,7 @@ function App() {
 
       // Set current emails to the current stream with ML ranking
       const currentStreamEmails = newStreamEmails[currentStream.id] || []
-      const rankedEmails = await applyMLRanking(currentStreamEmails)
+      const rankedEmails = await applyMLRanking(currentStreamEmails, currentStream.id)
       setEmails(rankedEmails)
       setAllFetchedEmails(rankedEmails) // Store for filtering
 
@@ -1372,6 +1377,12 @@ function App() {
       // Process ML feedback for "not interested" action (left swipe in stream)
       try {
         await mlService.processEmailSwipe(email, 'not_interested')
+
+        // If in Smart Recommendations stream, recompute scores after swipe
+        if (currentStream?.id === 'smart') {
+          console.log('🧠 Recomputing Smart Recommendations after left swipe...')
+          await recomputeSmartRecommendations()
+        }
       } catch (error) {
         console.warn('ML feedback failed but continuing with email action:', error)
       }
@@ -1386,6 +1397,12 @@ function App() {
       // Process ML feedback for "interested" action (right swipe in stream)
       try {
         await mlService.processEmailSwipe(email, 'interested')
+
+        // If in Smart Recommendations stream, recompute scores after swipe
+        if (currentStream?.id === 'smart') {
+          console.log('🧠 Recomputing Smart Recommendations after swipe...')
+          await recomputeSmartRecommendations()
+        }
       } catch (error) {
         console.warn('ML feedback failed but continuing with email action:', error)
       }
@@ -1395,22 +1412,40 @@ function App() {
     return await analyzeAndSortEmail(email)
   }
 
+  // Recompute Smart Recommendations after user preference changes
+  const recomputeSmartRecommendations = async () => {
+    if (currentFolder === 'STREAM' && currentStream?.id === 'smart') {
+      try {
+        const currentEmails = emails.filter(email => !email._processed)
+        if (currentEmails.length > 0) {
+          const rerankedEmails = await applyMLRanking(currentEmails, 'smart')
+          setEmails(rerankedEmails)
+        }
+      } catch (error) {
+        console.warn('Failed to recompute Smart Recommendations:', error)
+      }
+    }
+  }
+
   // Enhanced email ranking with ML (only for smart stream)
-  const applyMLRanking = async (emailList) => {
+  const applyMLRanking = async (emailList, streamId = null) => {
+    const targetStreamId = streamId || currentStream?.id
+    console.log(`🔍 applyMLRanking called with ${emailList.length} emails, currentFolder: ${currentFolder}, targetStream: ${targetStreamId}`)
     try {
-      if (currentFolder === 'STREAM' && currentStream?.id === 'smart') {
+      if (currentFolder === 'STREAM' && targetStreamId === 'smart') {
         // Set ML loading state
         setMlLoading(true)
         console.log(`🧠 Starting ML ranking for ${emailList.length} emails...`)
 
         // Only apply ML ranking to smart stream
         const rankedEmails = await mlService.rankEmails(emailList)
-        console.log(`🧠 Applied ML ranking to ${emailList.length} emails for Smart Stream`)
+        console.log(`🧠 Applied ML ranking - got ${rankedEmails.length} emails with scores:`, rankedEmails.map(e => ({id: e.id, score: e._preferenceScorePercent})))
 
         // Clear ML loading state
         setMlLoading(false)
         return rankedEmails
       }
+      console.log(`🔍 Not applying ML ranking - wrong stream or folder`)
       return emailList
     } catch (error) {
       console.warn('ML ranking failed, using original order:', error)

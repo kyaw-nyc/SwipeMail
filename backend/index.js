@@ -11,7 +11,8 @@ const PORT = process.env.PORT || 3001
 
 // Middleware
 app.use(cors())
-app.use(express.json())
+app.use(express.json({ limit: '50mb' })) // Increase limit for email content
+app.use(express.urlencoded({ limit: '50mb', extended: true }))
 
 // Sample email data for mock mode
 const mockEmails = [

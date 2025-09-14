@@ -157,12 +157,8 @@ class PreferenceService {
    * @returns {number} - Preference score (-1 to 1)
    */
   calculateTokenScore(tokenData) {
-    const total = tokenData.right + tokenData.left
-    if (total === 0) return 0
-
-    // Simple scoring: (positive - negative) / total
-    const score = (tokenData.right - tokenData.left) / total
-    return Math.max(-1, Math.min(1, score))
+    // Direct implementation of: preference_score(token) = right_swipes - left_swipes
+    return tokenData.right - tokenData.left
   }
 
   /**
@@ -172,29 +168,25 @@ class PreferenceService {
    * @returns {Promise<number>} - Email preference score (0 to 100)
    */
   async calculateEmailScore(userId, tokens) {
-    if (!tokens || tokens.length === 0) return 50 // Neutral score
+    if (!tokens || tokens.length === 0) return 0 // Neutral score
 
     try {
       const profile = await this.loadProfile(userId)
       let totalScore = 0
-      let scoredTokens = 0
 
+      // Sum preference scores: Σ(preference_score(token)) across all tokens
       tokens.forEach(token => {
         const tokenData = profile.preferences[token]
-        if (tokenData && (tokenData.right + tokenData.left) > 0) {
+        if (tokenData) {
           totalScore += this.calculateTokenScore(tokenData)
-          scoredTokens += 1
         }
+        // Unknown tokens contribute 0 to the score
       })
 
-      if (scoredTokens === 0) return 50 // Neutral for unknown tokens
-
-      // Average score, then normalize to 0-100 range
-      const averageScore = totalScore / scoredTokens
-      return Math.round(((averageScore + 1) / 2) * 100) // Convert from [-1,1] to [0,100]
+      return totalScore
     } catch (error) {
       console.error('Failed to calculate email score:', error)
-      return 50
+      return 0
     }
   }
 
@@ -214,15 +206,23 @@ class PreferenceService {
           const score = await this.calculateEmailScore(userId, tokens)
           return {
             ...email,
-            _preferenceScore: score / 100, // Keep 0-1 for sorting but also store percentage
-            _preferenceScorePercent: score,
+            _preferenceScore: score,
+            _preferenceScorePercent: Math.max(0, Math.min(100, 50 + score)), // Display score (clamped 0-100, 50 = neutral)
             _tokens: tokens
           }
         })
       )
 
-      // Sort by preference score (highest first)
-      return emailsWithScores.sort((a, b) => b._preferenceScore - a._preferenceScore)
+      // Sort by preference score (descending), then by recency (internalDate descending) for tie-breaking
+      return emailsWithScores.sort((a, b) => {
+        if (a._preferenceScore !== b._preferenceScore) {
+          return b._preferenceScore - a._preferenceScore // Higher score first
+        }
+        // Tie-breaker: more recent first
+        const aDate = a.internalDate ? parseInt(a.internalDate) : 0
+        const bDate = b.internalDate ? parseInt(b.internalDate) : 0
+        return bDate - aDate
+      })
     } catch (error) {
       console.error('Failed to rank emails:', error)
       return emails
