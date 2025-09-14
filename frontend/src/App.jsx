@@ -2075,7 +2075,7 @@ function App() {
   }
 
   return (
-    <div className="app">
+    <div className={`app ${!user ? 'landing' : ''}`}>
       {/* Fun loading screen for initial stream loading */}
       {user && !streamsLoaded && (
         <div className="stream-loading-overlay">

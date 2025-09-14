@@ -70,7 +70,9 @@ body {
   color: var(--text);
   margin: 0;
   padding: 0;
-  overflow: hidden; /* prevent body scroll */
+  /* allow vertical scroll by default; horizontal hidden */
+  overflow-x: hidden;
+  overflow-y: auto;
   animation: fadeIn 0.5s ease-in-out;
   position: relative;
   height: 100vh;
@@ -143,6 +145,11 @@ body::before {
   height: calc(100vh - 60px);
   box-sizing: border-box;
   position: relative;
+}
+
+/* On landing (logged-out) view, let the main content scroll */
+.landing .app-main {
+  overflow-y: auto;
 }
 
 .app-content {
