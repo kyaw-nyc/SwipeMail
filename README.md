@@ -1,4 +1,5 @@
 # 🚀 SwipeMail: Next-Generation AI-Powered Email Management
+<img width="916" height="490" alt="image" src="https://github.com/user-attachments/assets/02225224-8f13-48dc-b112-816b66b51029" />
 
 **Turn inbox chaos into calm — one intelligent swipe at a time**
 
